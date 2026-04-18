@@ -1,4 +1,4 @@
-# wigren-skills
+# vibe
 
 A small, hand-authored collection of agent skills. Each skill is self-contained under `plugins/<skill>/skills/<skill>/` and follows the 2025 **Agent Skills** format (SKILL.md with YAML frontmatter) that Anthropic, OpenAI, Google, and OpenCode have all converged on.
 
@@ -18,11 +18,11 @@ The repo is simultaneously:
 ### Claude Code (plugin marketplace)
 
 ```
-/plugin marketplace add wigren/skills
-/plugin install codebase-deep-analysis@wigren-skills
+/plugin marketplace add tuxie/vibe
+/plugin install codebase-deep-analysis@tuxie-vibe
 ```
 
-Replace `wigren/skills` with the actual GitHub slug, full HTTPS URL (`https://gitlab.example/you/skills.git`), or local path (`/src/skills`) if you cloned elsewhere. Re-run `/plugin install <name>@wigren-skills` for each skill you want.
+Replace `tuxie/vibe` with the full HTTPS URL (`https://gitlab.example/you/vibe.git`) or local path (`/src/vibe`) if you cloned elsewhere. Re-run `/plugin install <name>@tuxie-vibe` for each skill you want.
 
 After install, skills are available as normal — invoke via `Skill` tool or let discovery surface them when their `description` matches.
 
@@ -32,16 +32,16 @@ Codex scans `.agents/skills/` up from the current working directory, then `~/.ag
 
 **Per-repo (recommended for project-scoped skills):**
 ```sh
-git clone https://github.com/wigren/skills.git ~/src/wigren-skills
-ln -s ~/src/wigren-skills/.agents/skills/codebase-deep-analysis \
+git clone git@github.com:tuxie/vibe.git ~/src/vibe
+ln -s ~/src/vibe/.agents/skills/codebase-deep-analysis \
        <your-project>/.agents/skills/codebase-deep-analysis
 ```
 
 **User-wide:**
 ```sh
-git clone https://github.com/wigren/skills.git ~/src/wigren-skills
+git clone git@github.com:tuxie/vibe.git ~/src/vibe
 mkdir -p ~/.agents/skills
-ln -s ~/src/wigren-skills/.agents/skills/codebase-deep-analysis \
+ln -s ~/src/vibe/.agents/skills/codebase-deep-analysis \
        ~/.agents/skills/codebase-deep-analysis
 ```
 
