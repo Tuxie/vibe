@@ -64,10 +64,13 @@ The folder slug is the date (or date + time on collision). `clusters/` numbering
 
 - [Executive summary](./executive-summary.md) — top {N} clusters
 - [Themes](./themes.md) — cross-cutting patterns
-- **Clusters** (ordered by recommended fix sequence):
-  - [01 — {slug}](./clusters/01-{slug}.md) — {one-line goal} · {size} · severity {highest}
-  - [02 — {slug}](./clusters/02-{slug}.md) — …
-  - …
+- **Clusters** (ordered by recommended fix sequence; regenerate with `scripts/render-status.sh <report-dir>` after flipping any cluster's `Status:`):
+
+<!-- cluster-index:start -->
+- [Cluster 01 — {slug}](./clusters/01-{slug}.md) — {one-line goal} · **open**
+- [Cluster 02 — {slug}](./clusters/02-{slug}.md) — {one-line goal} · **open**
+- …
+<!-- cluster-index:end -->
 - **By analyst** (for traceability, not for reading end-to-end):
   - [backend](./by-analyst/backend.md) · [frontend](./by-analyst/frontend.md) · [database](./by-analyst/database.md) · [tests](./by-analyst/tests.md) · [security](./by-analyst/security.md) · [tooling](./by-analyst/tooling.md) · [docs](./by-analyst/docs.md)
 - [Checklist](./checklist.md)
@@ -78,7 +81,20 @@ The folder slug is the date (or date + time on collision). `clusters/` numbering
 
 1. Read the executive summary.
 2. Pick one cluster. Open its file. Start a brainstorming session against that cluster alone — do not try to bundle clusters.
-3. When a cluster is resolved, mark it done in this README (strike through the link). The report is a living artifact until every cluster is closed or explicitly deferred.
+3. When a cluster is resolved, flip `Status:` inside the cluster file and set `Resolved-in:` to the merging commit SHA. Then run `scripts/render-status.sh` (see repo root of this report) to regenerate the index block above. **Do not edit the index by hand** — it will drift.
+
+{IF `Pre-release surface: Recommend yes` in scout output, render this block:}
+
+## Pre-release verification checklist
+
+This repo has both CI config ({list}) and a local CI-equivalent runner ({list}). Before tagging a release:
+
+- [ ] Run the local runner against the release workflow on a throwaway branch. Catches workflow-level typos before they fail the real push.
+- [ ] Verify the commit(s) resolving closed clusters (see index above) are all on the release branch.
+- [ ] Confirm no cluster still `in-progress` is a release blocker.
+- [ ] Confirm `not-in-scope.md` "Deferred this run" entries are either still deferred-on-purpose or have tracking tickets.
+
+{ENDIF}
 ```
 
 ---
@@ -108,11 +124,26 @@ Top {1–5} clusters selected per `synthesis.md` §7.
 
 ## `clusters/{NN-slug}.md` template
 
+Each cluster file is a living artifact: its `Status:` field is the source of truth for the README index. When a cluster closes, flip `Status:` here and regenerate the index (see `scripts/render-status.sh`). Do not edit the README index by hand.
+
 ```markdown
+---
+Status: open
+Resolved-in:
+---
+
 # Cluster {NN} — {slug}
 
-> **Goal:** {one sentence}
->
+## TL;DR
+
+- **Goal:** {one sentence}
+- **Impact:** {one line — what breaks / improves when this lands}
+- **Size:** {Small (<2h) | Medium (half-day) | Large (full day+)}
+- **Depends on:** {none | cluster NN}
+- **Severity:** {highest in cluster}
+
+## Header
+
 > Session size: {Small | Medium | Large} · Analysts: {list} · Depends on: {none | cluster NN}
 
 ## Files touched
@@ -128,12 +159,13 @@ Top {1–5} clusters selected per `synthesis.md` §7.
 
 ## Findings
 
-{Full finding bodies, ordered Severity desc → Confidence desc → file:line. Preserve `Raised by:`, `Fix:`, `Autonomy:`, `Notes:` verbatim from synthesis. Include the `Cluster hint:` line from the source finding for traceability.}
+{Full finding bodies, ordered Severity desc → Confidence desc → file:line. Preserve `Raised by:`, `Fix:`, `Autonomy:`, `Notes:`, `Depends-on:` verbatim from synthesis. Include the `Cluster hint:` line from the source finding for traceability.}
 
 - **{Title}** — {description}
   - Location: `path/to/file:LINE`
   - Severity: {…} · Confidence: {…} · Effort: {…} · Autonomy: {…}
   - Cluster hint: `{original-hint}`
+  - Depends-on: {optional, e.g., `cluster 01-swap-console-log`}
   - Fix: {verified replacement if present}
   - Raised by: {agents}
   - Notes: {optional}
@@ -141,7 +173,27 @@ Top {1–5} clusters selected per `synthesis.md` §7.
 ## Suggested session approach
 
 {2–3 sentences sketching how a brainstorming session might structure the work. This is the one place in the report where rendered output adds guidance beyond synthesis — keep it operational, not philosophical. If the cluster is straight mechanical fixes, say so and recommend subagent dispatch instead of brainstorming.}
+
+## Commit-message guidance
+
+When the fix for this cluster lands, the commit message (or PR body) should:
+
+1. Name the cluster slug and date on the first line — e.g., `fix(cluster 03-perf-hotpath, 2026-04-17): …`. This is what lets `Resolved-in:` stay machine-findable.
+2. If the fix touched code outside the cluster to unblock a verification gate, add an **`Incidental fixes`** section listing each extra file with a one-line reason. See `synthesis.md` §12 for when this is legitimate.
+3. If the fix also resolved a finding from another cluster (via `Depends-on:` chain), name that cluster — synthesis §11 uses this to update `Status: resolved-by-dep` downstream.
 ```
+
+### Cluster `Status` lifecycle
+
+| Value | Meaning |
+|-------|---------|
+| `open` | Nothing started. Default on render. |
+| `in-progress` | A fix session is underway; commit(s) may exist on a branch but not merged. |
+| `closed` | Fix merged. `Resolved-in:` must be set to a commit SHA (or tag) that resolved the cluster. |
+| `deferred` | Cluster intentionally punted. Populate a `Deferred-reason:` inline field under the `---` block and cross-link to where the deferral is tracked (issue, follow-up doc, skill checkbox). See synthesis §8 / §11. |
+| `resolved-by-dep` | Cluster is fixed as a side-effect of another cluster's merge (per synthesis §11). Set `Resolved-in:` to the upstream commit and add `Resolving-cluster:` to name the upstream cluster slug. |
+
+`Status:` is the **only** field the user edits by hand after the report lands. Everything else in the cluster file is frozen synthesis output.
 
 ---
 
@@ -256,6 +308,15 @@ This file records what the analysis intentionally did **not** produce, so the us
 - Below profile threshold (project=T{N}): **{N}**
 - Stylistic restatement: **{N}**
 - Rule-restatement (already in CLAUDE.md / docs): **{N}**
+
+## Deferred this run
+
+Findings the analysts raised as real but intentionally punted this run (checklist state `[~] deferred`). Each entry names its tracking location so the next analysis or the next release checklist can pick up where we left off.
+
+- {ID or finding title} — `{file:line}` — reason: {one line} — tracking: {cluster NN | issue URL | file path}
+- …
+
+{If none: `_No items deferred this run._`}
 
 ## Structural exclusions (never examined statically)
 

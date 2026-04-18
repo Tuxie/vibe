@@ -15,6 +15,7 @@ Scope globs are advisory defaults; if the Scout's map reveals the project uses d
 | **Security Analyst** | **Opus** | Entire repo — authn/z, input validation, secrets handling, subprocess, deserialization, crypto, file IO on user input, SSRF, ReDoS, OWASP top 10; also CI supply chain and container security cross-cuts | SEC-1, GIT-3, FUZZ-1 (joint with Test), CI-1..CI-4 (joint with Tooling, if `ci`), CONT-3 (joint with Tooling, if `container`), IAC-1..IAC-3 (joint with Tooling, if `iac`) |
 | **Tooling Analyst** | Sonnet | `.github/**`, CI configs, `Dockerfile*`, `Makefile`, `justfile`, package manager configs (`package.json` scripts, `bunfig.toml`, etc.), deploy configs, lockfiles, toolchain pins | TOOL-1..TOOL-7, BUILD-1..BUILD-3, GIT-2, GIT-4, CI-1..CI-4 (if `ci`, joint with Security), CONT-1, CONT-2, CONT-4 (if `container`), IAC-1..IAC-3 (if `iac`, joint with Security) |
 | **Docs Consistency Analyst** | Sonnet | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `README.md`, `docs/**`, inline comments across whole repo | DOC-1..DOC-5, META-1, NAM-8 (user-visible text in docs), GIT-1, DEAD-3 |
+| **Coverage & Profiling Analyst** | Sonnet | Test directories, coverage artifacts (`coverage/**`, `lcov.info`, `coverage-summary.json`), bench/profile artifacts (`bench/**`, `flamegraph.*`, `*.prof`), `package.json` scripts / `Makefile` / `justfile` / `Taskfile*` targets | COV-1..COV-3, PROF-1..PROF-2 (new IDs — see coverage-profiling-prompt.md for definitions) |
 
 ## Ownership collisions
 
@@ -26,6 +27,12 @@ Joint items (e.g., `CI-1` owned by Tooling + Security, `FUZZ-1` by Test + Securi
 - Frontend owns UI strings.
 - Backend owns log messages and CLI output.
 - Docs owns `*.md` files and inline comments.
+
+## Gated analyst: Coverage & Profiling
+
+Unlike every other analyst, Coverage & Profiling may **run** project commands (coverage target, bench target). That breaks the read-only invariant of the rest of the skill, so it is gated behind a second explicit user consent in Step 3.5 — it does **not** dispatch in the Step 3 parallel fan-out. It is also static-capable: if the user declines the execution step, it still produces a static gap-analysis pass (source→test mapping, missing-test inference, bench-target presence check) without running anything.
+
+See `coverage-profiling-prompt.md` for the analyst's prompt; see SKILL.md Step 3.5 for the consent/execution protocol.
 
 ## Escalation
 

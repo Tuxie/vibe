@@ -15,6 +15,16 @@ The Structure Scout assigns the repo one tier, with evidence. Analysts filter ow
 - Item min-tier ≤ project tier → analyst must address it.
 - Item min-tier > project tier → analyst emits `[-] N/A — below profile threshold (project=T{N})` **unless** the repo shows explicit intent to do the thing anyway (e.g., an `i18n/` dir in a T1 repo flips I18N items back on). Counter-evidence gets cited on the checklist line.
 
+**Checklist line shapes (the full set):**
+
+- `[x] <evidence pointer>` — analyzed and filed ≥1 finding.
+- `[x] clean — <what was sampled>` — analyzed, nothing to file; scope of "clean" must be concrete.
+- `[-] N/A — <reason>` — does not apply (wrong tier, wrong stack, no surface).
+- `[?] inconclusive — <what was tried>` — investigated, could not decide.
+- `[~] deferred — <reason + tracking location>` — real finding, intentionally not addressed this run (infra blocker, awaiting upstream, awaiting user decision the skill is not empowered to make). `tracking location` is a file path, issue link, or cluster slug holding the deferral.
+
+`[~] deferred` is a **terminal** state, not a placeholder for `[?]`. Use `[?]` when analysis itself was blocked; use `[~]` when analysis succeeded but action is deliberately punted. Synthesis treats the two differently: `[?]` flags weak coverage; `[~]` is accepted as-is and surfaced in the Executive Summary only if the deferred item is Critical/High.
+
 **Over-engineering is a first-class finding.** If a T1 repo uses T3-scale patterns (full DI container, hexagonal architecture, metrics pipeline no one reads), that is a `QUAL-4` finding against the project — not praise.
 
 ---
@@ -253,6 +263,23 @@ Split out from DB: a good schema can still be delivered unsafely.
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
 | FUZZ-1 | Security-sensitive parser / decoder / builder (input to shell, SQL, path, deserializer, auth token decoder) with no fuzz or property tests | T2 | Security, Test |
+
+## COV — Test coverage
+
+Runs in the gated Step 3.5 pass. Items that require running the coverage command emit `[?] inconclusive — execution declined` if the user did not grant Step 3.5 consent; the static analogues still run.
+
+| ID | Item | Min tier | Owner |
+|----|------|----------|-------|
+| COV-1 | Source files with zero test coverage (static: no `*.test.*` / `*.spec.*` / `tests/` sibling pointing at them; dynamic: 0% line coverage in a reachable file) | T1 | Coverage |
+| COV-2 | Public API surface (exported functions / HTTP handlers / CLI subcommands) with no tests exercising the surface, even when the internals are tested | T2 | Coverage |
+| COV-3 | Coverage-config gaps — exclusions that hide real code (e.g., `**/*.ts` without narrowing), no coverage threshold gate in CI where one would fit the project tier | T2 | Coverage |
+
+## PROF — Profiling / benchmarking
+
+| ID | Item | Min tier | Owner |
+|----|------|----------|-------|
+| PROF-1 | Performance-sensitive path (declared as such in code comments, benchmarked in-repo, or flagged by a PERF-\* finding) without a repeatable bench target | T2 | Coverage |
+| PROF-2 | Existing bench/profile artifacts (`*.prof`, flamegraphs) in-repo are stale (>6 months older than the code paths they cover) or orphaned (refer to symbols that no longer exist) | T2 | Coverage |
 
 ## SEC — Security
 

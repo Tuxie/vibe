@@ -30,6 +30,12 @@ When **autonomy tags differ**:
 
 - Take the most conservative (needs-spec > needs-decision > autofix-ready). A fix is only autofix-ready if every agent raising it agrees.
 
+When a finding carries `Depends-on: cluster {slug}` (or `Depends-on: finding {anchor}`):
+
+- Keep the dependency edge in the merged entry.
+- During cluster assembly (§6), place the dependent finding in the downstream cluster and add `Depends on cluster(s): {slug}` to that cluster's metadata.
+- If the dependency has already landed in the user's workflow between analysis and fix (e.g., the earlier cluster's merge also fixed this finding incidentally), mark the finding `Status: resolved-by-dep` during re-synthesis rather than re-flagging it. See §11 for when to re-synthesize.
+
 ## 3. Right-sizing filter (CRITICAL for report quality)
 
 Walk every merged finding from §2 against the Scout's project tier. The goal is to strip inactionable noise before anything else happens.
@@ -47,8 +53,10 @@ Drop or downgrade a finding when **any** of these hold:
 
 ```
 Filtered out during right-sizing: {N} findings.
-Breakdown: {M} tier-mismatch (dropped), {K} tier-mismatch (fix rewritten), {L} below-threshold, {P} stylistic, {Q} rule-restatement.
+Breakdown: {M} tier-mismatch (dropped), {K} tier-mismatch (fix rewritten), {L} below-threshold, {P} stylistic, {Q} rule-restatement, {D} deferred.
 ```
+
+`deferred` counts findings with a `[~] deferred` checklist line or equivalent finding-level deferral — they are not dropped, they land in `not-in-scope.md` under "Deferred this run" with their tracking location.
 
 If this tally is near zero on a T1 project, the analysts under-filtered — flag it in the report's Notes section so the user can recalibrate the skill for next run.
 
@@ -131,6 +139,8 @@ Walk every checklist line the agents emitted:
 - **Bare `[x]` with no evidence** → demote to `[?]` and append `— defect: no evidence provided`.
 - **`[x] clean` with no sampling statement** → demote to `[?]` and append `— defect: scope of "clean" claim unspecified`.
 - **`[-] N/A` that contradicts Scout's applicability flag OR mis-states the tier rule** → demote to `[?]`, append `— defect: contradicts {applicability|tier} rule; needs re-dispatch`, and flag the item for a targeted re-run.
+- **`[~] deferred` without a tracking location** → demote to `[?]` and append `— defect: deferred without tracking pointer`. A legitimate `[~]` has a cluster slug, issue link, or file path; otherwise it is a disguised `[?]`.
+- **`[~] deferred` with a tracking location** → accept verbatim. Add to the `Deferred this run` list in `not-in-scope.md` (see `report-template.md`).
 - **Missing owned item** (agent did not emit a line for an item it owns) → synthesize `[?] inconclusive — agent did not address this item` and flag as defect.
 
 Defect-demoted lines appear verbatim; do not silently fix them. The user needs to see where the analysis was weakest.
@@ -151,6 +161,27 @@ Collect under `meta.md` in the report directory. If nothing repeats ≥3 times, 
 
 If §7 surfaced fewer than 3 Executive Summary clusters despite the codebase being non-trivial, or §8 flagged a defect that matters (missing scope coverage, tier contradiction, applicability contradiction), dispatch a **single targeted Opus Explore agent** to re-analyze the specific paths in question. Merge its output back through §1–§8. Stop after one targeted pass — do not loop.
 
-## 11. Freeze
+## 11. Re-synthesis for Depends-on resolution
 
-Once §1–§10 are done, the synthesized set is frozen. Writing the report (Step 5 of the skill) is a pure rendering pass from this set — no new findings, no new dedup, no new severity adjustments, no new clustering.
+Between the freeze and any later fix work, cluster merges can resolve findings in other clusters incidentally (e.g., a finding tagged `Depends-on: cluster 01` that cluster 01's fix also handles). This is handled by the status-field bookkeeping layer, not the first-pass synthesis:
+
+- On the first synthesis pass, surface the dependency edge in both places: the downstream cluster metadata carries `Depends on cluster(s): {slug}`; the finding retains its `Depends-on:` line.
+- When a cluster is later marked `Status: closed` with a `Resolved-in: <commit|tag>` field (see `report-template.md` cluster template), any downstream finding whose `Depends-on:` names that cluster is eligible for mark-as-resolved-by-dep. The user (or a targeted re-synthesis pass) confirms by reading the resolving commit and, if genuinely fixed, striking the finding through with `Status: resolved-by-dep (cluster NN)` rather than re-opening the downstream cluster.
+- Do **not** auto-resolve based on dep edges alone. "Cluster 01 merged" ≠ "finding X is fixed"; the edge is a prompt to check, not a conclusion.
+
+## 12. Scope expansion is a legitimate outcome
+
+Fix work on a cluster sometimes requires touching related code the analyst did not flag — e.g., unblocking `typecheck` to verify a fix uncovers six pre-existing type errors in adjacent files that must be repaired to get a green gate. This is not scope creep; it is the only honest way to land the cluster.
+
+Rules:
+
+- **Expand when a verification gate demands it.** If the cluster's own fix cannot be validated without the expansion (typecheck, lint, existing tests), expand.
+- **Do not expand beyond the gate.** If the typecheck errors are in a module unrelated to the cluster's subsystem, stop at what is necessary to make the gate pass and file a new finding on the rest.
+- **Document the expansion.** In the commit message, add a section named **`Incidental fixes`** listing each out-of-scope change with its file path and a one-line reason. This keeps the review trail honest and prevents "why did you touch this?" review churn.
+- **Scope expansion does not promote `needs-spec` / `needs-decision` findings.** If expansion would require a spec or design call, stop and surface it.
+
+Analysts never expand scope — this section is guidance for later fix sessions that consume the cluster file. Synthesis does not filter on it.
+
+## 13. Freeze
+
+Once §1–§10 are done, the synthesized set is frozen. Writing the report (Step 5 of the skill) is a pure rendering pass from this set — no new findings, no new dedup, no new severity adjustments, no new clustering. §11 and §12 describe what happens after freeze, during later fix work; they do not loop back into synthesis.

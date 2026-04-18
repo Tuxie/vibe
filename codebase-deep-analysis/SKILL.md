@@ -9,7 +9,7 @@ description: Use when asked to perform an exhaustive deep analysis of an entire 
 
 Dispatch parallel Explore subagents to analyze every **applicable** layer of the codebase — backend, frontend, tests, tooling, database, documentation, security — then synthesize findings into a **directory** of markdown files that a brainstorming session can consume one cluster at a time.
 
-**The only writes permitted are to `docs/code-analysis/`** (the report directory and a scratch subdirectory). No code modifications. No running builds, tests, migrations, installs, or any subcommand that writes state. Read-only shell commands only.
+**The only writes permitted are to `docs/code-analysis/`** (the report directory and a scratch subdirectory). No code modifications. Read-only shell commands only, with **one carefully-bounded exception**: Step 3.5 may invoke the project's own existing coverage and bench commands if — and only if — the user grants a second explicit consent specifically for that step. Never run builds, migrations, installs, or any other subcommand that mutates state.
 
 **Two core principles, equally important:**
 
@@ -20,12 +20,14 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 
 | File | Purpose |
 |------|---------|
-| `references/structure-scout-prompt.md` | Prompt for the mapping pass, including **project tier** classification |
-| `references/agent-roster.md` | Which analysts exist, what they own, when they run |
-| `references/agent-prompt-template.md` | Template filled in per analyst; enforces ground rules + tier-sensitive finding format (adds `Autonomy:` and `Cluster hint:` fields) |
-| `references/checklist.md` | Stable checklist IDs with min-tier tags and agent ownership |
-| `references/synthesis.md` | Dedup, right-sizing filter, hybrid clustering, severity resolution, Executive Summary |
-| `references/report-template.md` | Multi-file directory skeleton (README, exec summary, clusters, by-analyst, checklist, meta, not-in-scope) |
+| `references/structure-scout-prompt.md` | Prompt for the mapping pass, including **project tier**, docs-drift flag, and pre-release-surface detection |
+| `references/agent-roster.md` | Which analysts exist, what they own, when they run (including the gated Coverage & Profiling analyst) |
+| `references/agent-prompt-template.md` | Template filled in per analyst; enforces ground rules + tier-sensitive finding format (adds `Autonomy:`, `Cluster hint:`, and `Depends-on:` fields) |
+| `references/checklist.md` | Stable checklist IDs with min-tier tags, agent ownership, and the full set of checklist-line shapes including `[~] deferred` |
+| `references/synthesis.md` | Dedup, right-sizing filter, hybrid clustering, severity resolution, Executive Summary, Depends-on handling, scope-expansion rules |
+| `references/report-template.md` | Multi-file directory skeleton with cluster `Status:` / `Resolved-in:` frontmatter, TL;DR block, Pre-release checklist, Deferred section |
+| `references/coverage-profiling-prompt.md` | Prompt for the Step 3.5 gated analyst; static-only pass is default, dynamic execution requires second user consent |
+| `scripts/render-status.sh` | Rebuilds the README cluster-index block from each cluster file's `Status:` field — prevents README drift |
 
 ## Execution flow
 
@@ -33,18 +35,20 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 digraph analysis_flow {
     "Start" [shape=doublecircle];
     "Step 0 — Preflight" [shape=box];
-    "Step 1 — Structure Scout (maps + tiers)" [shape=box];
+    "Step 1 — Structure Scout (maps + tiers + drift)" [shape=box];
     "Step 2 — Scope resolution (prune by applicability + tier)" [shape=box];
-    "Step 3 — Dispatch analysts (parallel)" [shape=box];
+    "Step 3 — Dispatch analysts (parallel, read-only)" [shape=box];
+    "Step 3.5 — Coverage & Profiling (gated)" [shape=box];
     "Step 4 — Synthesis: dedup + right-size + cluster" [shape=box];
     "Step 5 — Render report directory" [shape=box];
     "Done" [shape=doublecircle];
 
     "Start" -> "Step 0 — Preflight";
-    "Step 0 — Preflight" -> "Step 1 — Structure Scout (maps + tiers)";
-    "Step 1 — Structure Scout (maps + tiers)" -> "Step 2 — Scope resolution (prune by applicability + tier)";
-    "Step 2 — Scope resolution (prune by applicability + tier)" -> "Step 3 — Dispatch analysts (parallel)";
-    "Step 3 — Dispatch analysts (parallel)" -> "Step 4 — Synthesis: dedup + right-size + cluster";
+    "Step 0 — Preflight" -> "Step 1 — Structure Scout (maps + tiers + drift)";
+    "Step 1 — Structure Scout (maps + tiers + drift)" -> "Step 2 — Scope resolution (prune by applicability + tier)";
+    "Step 2 — Scope resolution (prune by applicability + tier)" -> "Step 3 — Dispatch analysts (parallel, read-only)";
+    "Step 3 — Dispatch analysts (parallel, read-only)" -> "Step 3.5 — Coverage & Profiling (gated)";
+    "Step 3.5 — Coverage & Profiling (gated)" -> "Step 4 — Synthesis: dedup + right-size + cluster";
     "Step 4 — Synthesis: dedup + right-size + cluster" -> "Step 5 — Render report directory";
     "Step 5 — Render report directory" -> "Done";
 }
@@ -61,7 +65,7 @@ digraph analysis_flow {
 
 Dispatch **one** Explore subagent with the prompt in `references/structure-scout-prompt.md`. Haiku is preferred for this pass; fall back to the default model if Haiku is unavailable.
 
-The Scout's job is two things: (a) map the codebase; (b) **classify the project tier (T1 / T2 / T3)** with cited evidence. The tier is the single biggest right-sizing lever — it drives which analysts run, which checklist items are owned, and which findings survive synthesis.
+The Scout's job is four things: (a) map the codebase; (b) **classify the project tier (T1 / T2 / T3)** with cited evidence; (c) flag **load-bearing instruction-file drift** (CLAUDE.md / AGENTS.md / GEMINI.md / README.md that have fallen behind the code they reference); (d) detect the **pre-release verification surface** (CI config + local CI-equivalent runner). The tier is the single biggest right-sizing lever — it drives which analysts run, which checklist items are owned, and which findings survive synthesis. The drift flag tells the Docs analyst where to look hardest. The pre-release surface controls whether the final README emits a release checklist.
 
 Explore subagents cannot write files. When the Scout returns, **you** (the orchestrator) write its full output to `docs/code-analysis/{stem}/.scratch/codebase-map.md`. Analysts will Read that path; they will never receive the map pasted into their prompt.
 
@@ -101,6 +105,17 @@ Hard rules the template enforces (read it before editing):
 - Every finding carries: `file:line`, Severity (Critical/High/Medium/Low), Confidence (Verified / Plausible / Speculative), Effort (Small/Medium/Large/Unknown), **Autonomy** (autofix-ready / needs-decision / needs-spec), **Cluster hint** (kebab slug). The `Fix:` line is written only when Confidence = Verified **and** the agent can name the exact replacement — otherwise the line is omitted.
 - Every owned checklist item gets one of: `[x] <evidence pointer>`, `[x] clean — <what was sampled>`, `[-] N/A — <reason>`, `[?] inconclusive — <what was tried>`. Bare `[x]` is a defect.
 
+## Step 3.5 — Coverage & Profiling (gated, optional)
+
+This is the **only** step in the skill that may invoke project commands. It runs only when the user grants a second, explicit consent — do not roll it into Step 0's blanket approval.
+
+1. **Detect candidates without running anything.** Read `package.json` scripts, top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml`'s `[tool.*.scripts]` equivalents. Identify the coverage command (names containing `cov`, `coverage`, or a test runner flag like `--coverage`) and the bench/profile command (names containing `bench`, `benchmark`, `profile`). There may be zero, one, or both.
+2. **Ask once.** Use `AskUserQuestion` with the detected commands laid out plainly. Example: *"Step 3.5 can run the project's own coverage (`{cmd}`) and benchmarks (`{cmd}`) and fold the results into the report. This executes project code — unlike every other step in this skill. Proceed? [Run both / Run coverage only / Run bench only / Static-only / Skip]."* Do not block indefinitely; default to **Static-only** if the user does not answer in a reasonable window.
+3. **Dispatch the Coverage & Profiling analyst** with the prompt in `references/coverage-profiling-prompt.md`. Pass `{EXECUTION_CONSENT}` = `granted` or `declined` plus the detected commands (or "none detected"). The analyst is the single choke point for runtime invocation: the orchestrator does not run anything itself.
+4. **Merge output into synthesis.** The analyst's findings and checklist lines flow through Step 4 the same way as every other analyst — the only novelty is the optional dynamic-pass Confidence upgrade from Plausible to Verified on covered items.
+
+If the user chose **Skip**, omit the analyst entirely and record `Coverage & Profiling: skipped (user declined)` in Run metadata. The analyst is not silent on decline — static-only is its default mode.
+
 ## Step 4 — Synthesis
 
 See `references/synthesis.md`. Summary of what happens here:
@@ -133,9 +148,21 @@ docs/code-analysis/{stem}/
 └── .scratch/codebase-map.md
 ```
 
-Rendering is a pure pass from the frozen synthesized set. The only place rendering adds anything is the 2–3-sentence `Suggested session approach` block per cluster file.
+Rendering is a pure pass from the frozen synthesized set. The only place rendering adds anything is the 2–3-sentence `Suggested session approach` block per cluster file and, conditionally, the `## Pre-release verification checklist` block in the README when the Scout's `Pre-release surface` section recommended it.
 
 At the top of `README.md`, repeat the Step 0 token-warning sentence verbatim so any follow-up brainstorming session re-confirms before burning more tokens.
+
+Cluster files render with frontmatter containing `Status: open` and an empty `Resolved-in:`. The README's cluster-index block is bracketed by `<!-- cluster-index:start -->` / `<!-- cluster-index:end -->` markers so `scripts/render-status.sh` can regenerate it later without disturbing the rest of the README.
+
+## Bookkeeping after the report lands
+
+The report is a living artifact. The only file-format fields the user is expected to edit by hand after rendering are inside cluster frontmatter:
+
+- Flip `Status:` when work begins (`in-progress`), merges (`closed`), is punted (`deferred`), or is resolved incidentally by another cluster (`resolved-by-dep`).
+- Fill `Resolved-in:` with the commit SHA or release tag that actually resolved the cluster.
+- After any edit, run `scripts/render-status.sh <report-dir>` to rebuild the README index block. **Do not hand-edit the index**; it will drift from the cluster files immediately.
+
+See `references/report-template.md` "Cluster `Status` lifecycle" for the full state table. See `references/synthesis.md` §11 (Depends-on resolution) and §12 (scope expansion) for the two follow-on patterns that govern what fix sessions are allowed to do after the report is frozen.
 
 ## Model selection
 
@@ -155,7 +182,12 @@ There is **no** "when unsure, pick the more powerful tier" override. Unsure stay
 - **Re-reading the whole repo per agent.** Each agent stays inside its scope filter; cross-scope reads require a one-line justification on the finding that needed them.
 - **Self-certifying a fix suggestion.** If you cannot name the file, line, and exact replacement text, the `Fix:` line is omitted — not paraphrased.
 - **Ticking a checklist item with no evidence.** `[x]` without a file:line or an explicit "clean — <what was sampled>" / `[-] N/A — <reason>` is a defect; synthesis demotes it.
+- **Confusing `[?]` with `[~]`.** `[?]` means analysis was blocked; `[~] deferred` means analysis succeeded and action is intentionally punted. The two have different downstream behavior — see `synthesis.md` §8.
+- **Hand-editing the README cluster index.** It is generated from cluster-file `Status:` fields. Edit the cluster file, re-run `scripts/render-status.sh`.
 - **Trusting Scout's applicability or tier flags blindly.** If an analyst finds evidence that an applicability flag was wrong or the tier classification mismatches reality, it says so in its Summary; synthesis re-dispatches or re-tiers.
 - **Cluster-hint sprawl.** If every finding has its own unique cluster hint, clustering collapses into one-finding-per-file and the multi-file report is useless. Keep hints to a small controlled vocabulary per run.
+- **Rolling Step 3.5 consent into the Step 0 token warning.** They are different approvals — Step 3.5 runs project code. Ask separately or skip the dynamic pass.
+- **Auto-resolving `Depends-on:` findings when the upstream cluster merges.** The edge is a prompt to check, not a conclusion. See `synthesis.md` §11.
+- **Silent scope expansion during fix work.** When a cluster's fix must touch adjacent files to pass a verification gate, document every extra file under an `Incidental fixes` section in the commit message. See `synthesis.md` §12.
 - **Quoting secrets.** Describe presence, never contents.
-- **Running anything.** No `bun test`, no `npm run build`, no migrations, no scripts. Static reading only.
+- **Running anything outside Step 3.5.** No `bun test`, no `npm run build`, no migrations, no scripts in any other step. Static reading only.

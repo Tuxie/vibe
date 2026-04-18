@@ -44,6 +44,7 @@ For every issue, emit exactly this shape:
   - Effort: Small | Medium | Large | Unknown
   - Autonomy: autofix-ready | needs-decision | needs-spec
   - Cluster hint: `{kebab-slug}` — a short label suggesting which other findings this groups with in a fix session (e.g., `logger-migration`, `auth-middleware-rewrite`, `migration-safety`, `bundle-slimming`). Keep labels stable across findings so synthesis can cluster.
+  - Depends-on: {optional — `cluster {slug}` or `finding {id-or-anchor}` if this finding's fix is blocked by, or piggybacks on, another. Synthesis uses this to mark "already resolved by earlier cluster's merge" without re-flagging.}
   - Fix: {ONLY if Confidence == Verified AND you can name the exact replacement. Otherwise omit this line entirely — do not write "needs investigation", "TBD", or a paraphrase.}
   - Notes: {optional — cross-scope justification, corroboration pointer, tier caveat, or scope caveat}
 
@@ -65,6 +66,8 @@ Severities are relative to the project tier. A missing retry on a T1 CLI is Low;
 - **needs-decision** — fix direction is clear but has ≥2 reasonable options; a human should pick.
 - **needs-spec** — the root cause isn't knowable from static analysis; someone has to define desired behavior first.
 
+**Tier as a confidence boost on autonomy, not only a filter.** The tier filter is primarily subtractive (drop what doesn't fit a smaller project). It is also additive: for T2+ projects where the repo shows explicit intent to do the thing the fix does (matching existing patterns, continuing a migration already in flight, extending an established convention), prefer `autofix-ready` over `needs-decision` when the mechanics are unambiguous. Do not use this to upgrade a genuinely ambiguous fix — ≥2 reasonable options still means `needs-decision`.
+
 The `Fix:` line is a contract: only written when you are certain. Uncertainty goes in `Confidence:` and leaves `Fix:` off.
 
 ## Checklist
@@ -75,6 +78,7 @@ You own the items below. Emit **one line per item** in your Checklist section, u
 - `{ID} [x] clean — <one-line statement of what you actually sampled>` — you analyzed it and found nothing. "Clean" must be justified with the scope you looked at (e.g., "all ~40 handlers under src/routes/api"), not a bare claim.
 - `{ID} [-] N/A — <reason>` — the item does not apply to this codebase. Acceptable reasons include "below profile threshold (project={PROJECT_TIER})", "no i18n intent", "CLI-only project", etc.
 - `{ID} [?] inconclusive — <what you tried, what you would need>` — you investigated and could not decide.
+- `{ID} [~] deferred — <reason + tracking location>` — real issue, intentionally punted this run (blocked on user decision, upstream bug, infra the repo doesn't have). `tracking location` is a cluster slug, issue link, or file path holding the deferral. Do not use for "I didn't have time" — that's `[?]`.
 
 A bare `[x]` with no evidence, a "clean" with no sampling statement, or an `[-] N/A` that contradicts the Scout's applicability flag or mis-states the tier rule will be demoted during synthesis and flagged as a defect in your output.
 
