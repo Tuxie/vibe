@@ -9,6 +9,7 @@ docs/code-analysis/{YYYY-MM-DD | YYYY-MM-DD-HHMMSS}/
 ├── README.md                    # Index, metadata, token warning, tier + rationale
 ├── executive-summary.md         # Top clusters per synthesis §7
 ├── themes.md                    # Cross-cutting patterns (or "none surfaced")
+├── analysis-analysis.md         # Retrospective on the skill itself (Step 6); Part A filled now, Part B appended after fix work
 ├── clusters/
 │   ├── 01-{slug}.md            # Session-sized fix bundles, ordered by priority
 │   ├── 02-{slug}.md
@@ -20,7 +21,8 @@ docs/code-analysis/{YYYY-MM-DD | YYYY-MM-DD-HHMMSS}/
 │   ├── tests.md
 │   ├── security.md
 │   ├── tooling.md
-│   └── docs.md
+│   ├── docs.md
+│   └── coverage-profiling.md    # Only if Step 3.5 ran (static or dynamic); otherwise omitted
 ├── checklist.md                 # Full checklist, defects visible
 ├── meta.md                      # META-1 draft CLAUDE.md rules (or "none")
 ├── not-in-scope.md              # What was intentionally skipped, with reasons

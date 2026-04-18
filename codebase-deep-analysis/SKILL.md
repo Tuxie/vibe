@@ -27,6 +27,7 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 | `references/synthesis.md` | Dedup, right-sizing filter, hybrid clustering, severity resolution, Executive Summary, Depends-on handling, scope-expansion rules |
 | `references/report-template.md` | Multi-file directory skeleton with cluster `Status:` / `Resolved-in:` frontmatter, TL;DR block, Pre-release checklist, Deferred section |
 | `references/coverage-profiling-prompt.md` | Prompt for the Step 3.5 gated analyst; static-only pass is default, dynamic execution requires second user consent |
+| `references/analysis-analysis-template.md` | Two-part retrospective template (runner + fix coordinator) written **to the next skill version's author** — primary RED-phase input for v-next |
 | `scripts/render-status.sh` | Rebuilds the README cluster-index block from each cluster file's `Status:` field — prevents README drift |
 
 ## Execution flow
@@ -41,6 +42,7 @@ digraph analysis_flow {
     "Step 3.5 — Coverage & Profiling (gated)" [shape=box];
     "Step 4 — Synthesis: dedup + right-size + cluster" [shape=box];
     "Step 5 — Render report directory" [shape=box];
+    "Step 6 — Retrospective (analysis-analysis.md, Part A)" [shape=box];
     "Done" [shape=doublecircle];
 
     "Start" -> "Step 0 — Preflight";
@@ -50,7 +52,8 @@ digraph analysis_flow {
     "Step 3 — Dispatch analysts (parallel, read-only)" -> "Step 3.5 — Coverage & Profiling (gated)";
     "Step 3.5 — Coverage & Profiling (gated)" -> "Step 4 — Synthesis: dedup + right-size + cluster";
     "Step 4 — Synthesis: dedup + right-size + cluster" -> "Step 5 — Render report directory";
-    "Step 5 — Render report directory" -> "Done";
+    "Step 5 — Render report directory" -> "Step 6 — Retrospective (analysis-analysis.md, Part A)";
+    "Step 6 — Retrospective (analysis-analysis.md, Part A)" -> "Done";
 }
 ```
 
@@ -161,8 +164,26 @@ The report is a living artifact. The only file-format fields the user is expecte
 - Flip `Status:` when work begins (`in-progress`), merges (`closed`), is punted (`deferred`), or is resolved incidentally by another cluster (`resolved-by-dep`).
 - Fill `Resolved-in:` with the commit SHA or release tag that actually resolved the cluster.
 - After any edit, run `scripts/render-status.sh <report-dir>` to rebuild the README index block. **Do not hand-edit the index**; it will drift from the cluster files immediately.
+- When the last cluster closes, defers, or stalls, append **Part B** of `analysis-analysis.md` per the template at `references/analysis-analysis-template.md`. Part B is the fix coordinator's retrospective; it is the second half of the input the v-next author needs, and nobody else is positioned to write it. If fix work is ongoing at the next invocation of the skill on this repo, write what you have so far and mark the rest open.
 
 See `references/report-template.md` "Cluster `Status` lifecycle" for the full state table. See `references/synthesis.md` §11 (Depends-on resolution) and §12 (scope expansion) for the two follow-on patterns that govern what fix sessions are allowed to do after the report is frozen.
+
+## Step 6 — Retrospective: write `analysis-analysis.md` (Part A)
+
+**The skill is self-evolving. This step is how.**
+
+`tips-from-runner.md` in the skill repo was the RED-phase input for the v2 rewrite. The v3 author needs the same kind of input, but collected in-flight rather than reconstructed from memory. Step 6 produces that input every run.
+
+Immediately after Step 5 renders — **before the token-saving context decay makes details fuzzy** — write `docs/code-analysis/{stem}/analysis-analysis.md` from the template at `references/analysis-analysis-template.md`. The file has two parts:
+
+- **Part A — Runner retrospective.** You (the orchestrator) fill this in now. You have just driven every step of the skill; you know where the references over-specified, where they under-specified, where the filter dropped something it shouldn't have, and what token/time cost each analyst actually incurred. Write while that memory is live. The template lists every subsection — do not skip subsections, but a truthful "nothing notable here" is an acceptable body for one.
+- **Part B — Fix coordinator retrospective.** Leave as the empty template. The person (or agent) who later coordinates fix sessions on this report appends Part B when the last cluster closes, defers, or stalls.
+
+The audience is **the author of the next version of this skill** — a future Claude instance reading this file with no context from this run. Write to them directly. Name files, quote template text, give token counts when you have them. General advice ("be more specific") is useless; specific-to-this-run observations ("on a T3 polyglot repo with 14 analysts the scout's 500-line budget was 2x too small") are what drives real improvements.
+
+Do not skip this step. A v-next author with zero retrospectives is flying blind and will regress parts of the skill that already work. A v-next author with even one honest retrospective can focus changes on the parts that actually failed.
+
+The scratch codebase map is retained. `analysis-analysis.md` is **not** under `.scratch/` — it sits next to the report's `README.md` so the user finds it when reviewing the run, and so it is trivial to copy into the skill repo for v-next planning.
 
 ## Model selection
 
@@ -184,6 +205,8 @@ There is **no** "when unsure, pick the more powerful tier" override. Unsure stay
 - **Ticking a checklist item with no evidence.** `[x]` without a file:line or an explicit "clean — <what was sampled>" / `[-] N/A — <reason>` is a defect; synthesis demotes it.
 - **Confusing `[?]` with `[~]`.** `[?]` means analysis was blocked; `[~] deferred` means analysis succeeded and action is intentionally punted. The two have different downstream behavior — see `synthesis.md` §8.
 - **Hand-editing the README cluster index.** It is generated from cluster-file `Status:` fields. Edit the cluster file, re-run `scripts/render-status.sh`.
+- **Skipping Step 6.** The retrospective is how the skill evolves. An empty or boilerplate `analysis-analysis.md` is worse than none — it misleads the v-next author. Write specifics while they are fresh, or say "nothing notable" honestly.
+- **Postponing Part A.** If the orchestrator defers Part A to "write it later", the useful details are already gone. Part A is a Step 6 deliverable, not a follow-up.
 - **Trusting Scout's applicability or tier flags blindly.** If an analyst finds evidence that an applicability flag was wrong or the tier classification mismatches reality, it says so in its Summary; synthesis re-dispatches or re-tiers.
 - **Cluster-hint sprawl.** If every finding has its own unique cluster hint, clustering collapses into one-finding-per-file and the multi-file report is useless. Keep hints to a small controlled vocabulary per run.
 - **Rolling Step 3.5 consent into the Step 0 token warning.** They are different approvals — Step 3.5 runs project code. Ask separately or skip the dynamic pass.
