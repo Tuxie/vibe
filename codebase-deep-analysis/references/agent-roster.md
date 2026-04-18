@@ -1,0 +1,37 @@
+# Analyst roster
+
+Each analyst is dispatched as an Explore subagent. Prune by the Scout's applicability flags — see SKILL.md Step 2. Security and Docs always run (the Step 2 exceptions); all others are pruned when their flag is `absent`.
+
+Every analyst also filters its owned checklist items by the Scout's **project tier**: items with min-tier above the project tier are emitted as `[-] N/A — below profile threshold (project=T{N})` unless the analyst finds counter-evidence of explicit intent (see `checklist.md` "Tier interaction rule"). This is the single biggest lever for keeping the report right-sized.
+
+Scope globs are advisory defaults; if the Scout's map reveals the project uses different conventions, adjust per-agent before dispatch and note the override in the report's Run metadata.
+
+| Agent | Default model | In-scope paths / patterns | Owned checklist IDs |
+|-------|---------------|---------------------------|---------------------|
+| **Backend Analyst** | Sonnet | `src/server/**`, `src/lib/server/**`, `server/**`, `api/**`, `app/**` server files, business-logic modules, CLI entry points | EFF-1..EFF-3, PERF-1, PERF-3, PERF-4, PERF-5, QUAL-1..QUAL-8 (incl. 5a/5b/5c), ERR-1..ERR-3, ERR-5, CONC-1..CONC-5, OBS-1..OBS-4, LOG-1..LOG-7, TYPE-1..TYPE-3, API-1..API-4, DEP-1..DEP-8, NAM-1..NAM-7, NAM-8 (log + CLI output), DEAD-1, DEAD-2, COM-1..COM-3, MONO-1, MONO-2 (if monorepo) |
+| **Frontend Analyst** | Sonnet | `src/routes/**`, `src/components/**`, `src/lib/**` client files, `*.svelte`, `*.tsx`, `*.jsx`, `*.vue`, `*.html`, `*.css`, `*.scss`, `*.postcss`, `public/**`, CSS/Tailwind configs | EFF-1..EFF-3 (frontend-scoped), PERF-1..PERF-3, PERF-5, QUAL-1..QUAL-8 (frontend-scoped), ERR-4, ERR-5, CONC-1, CONC-2, CONC-4, OBS-4, TYPE-1..TYPE-3, A11Y-1..A11Y-5, I18N-1..I18N-3 (if `i18n-intent`), SEO-1..SEO-3 (if `web-facing-ui`), FE-1..FE-20, UX-1, UX-2, DEP-1..DEP-8 (frontend-scoped; prefer FE-9..FE-14 for frontend-specific overlap patterns), NAM-1..NAM-7 (frontend-scoped), NAM-8 (UI strings), DEAD-1, DEAD-2, COM-1..COM-3, MONO-1, MONO-2 (if monorepo) |
+| **Database Analyst** | Sonnet | `migrations/**`, `schema/**`, `*.sql`, ORM model files, query-builder usage sites | DB-1..DB-5, MIG-1..MIG-5 |
+| **Test Analyst** | Sonnet | `tests/**`, `test/**`, `*_test.*`, `*.spec.*`, test config files (`vitest.config.*`, `playwright.config.*`, `bunfig.toml`, etc.) | TEST-1..TEST-10, DET-1..DET-4, FUZZ-1 (joint with Security) |
+| **Security Analyst** | **Opus** | Entire repo — authn/z, input validation, secrets handling, subprocess, deserialization, crypto, file IO on user input, SSRF, ReDoS, OWASP top 10; also CI supply chain and container security cross-cuts | SEC-1, GIT-3, FUZZ-1 (joint with Test), CI-1..CI-4 (joint with Tooling, if `ci`), CONT-3 (joint with Tooling, if `container`), IAC-1..IAC-3 (joint with Tooling, if `iac`) |
+| **Tooling Analyst** | Sonnet | `.github/**`, CI configs, `Dockerfile*`, `Makefile`, `justfile`, package manager configs (`package.json` scripts, `bunfig.toml`, etc.), deploy configs, lockfiles, toolchain pins | TOOL-1..TOOL-7, BUILD-1..BUILD-3, GIT-2, GIT-4, CI-1..CI-4 (if `ci`, joint with Security), CONT-1, CONT-2, CONT-4 (if `container`), IAC-1..IAC-3 (if `iac`, joint with Security) |
+| **Docs Consistency Analyst** | Sonnet | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `README.md`, `docs/**`, inline comments across whole repo | DOC-1..DOC-5, META-1, NAM-8 (user-visible text in docs), GIT-1, DEAD-3 |
+
+## Ownership collisions
+
+Where the same checklist ID appears under two agents (e.g., `QUAL-1` for both Backend and Frontend), each agent keeps its own checklist line scoped to its paths — they do **not** fight for a single `[x]`. Synthesis merges overlapping *findings* by anchor but leaves both checklist lines in the report with subscope noted (see `synthesis.md` §4).
+
+Joint items (e.g., `CI-1` owned by Tooling + Security, `FUZZ-1` by Test + Security): each owner examines from its own lens. Tooling looks at CI workflow ergonomics; Security looks at trust boundaries and secret exposure. Synthesis merges by anchor.
+
+`NAM-8` (user-visible text — typos, grammar) is intentionally split:
+- Frontend owns UI strings.
+- Backend owns log messages and CLI output.
+- Docs owns `*.md` files and inline comments.
+
+## Escalation
+
+A dispatched analyst re-runs on Opus when **either** condition holds:
+
+1. Its declared scope exceeds ~50k LOC (Scout's map numbers it).
+2. Its first-pass output contains >30 findings at Severity High or Critical.
+
+The second pass's output merges with the first pass during synthesis (same anchors → dedup per `synthesis.md` §2).
