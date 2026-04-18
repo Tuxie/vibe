@@ -9,6 +9,13 @@ Two authors write two parts:
 
 Both parts are **addressed to a specific reader**: the person or agent authoring `codebase-deep-analysis` v-next. Write to them, not to the user of the current report. Do not rewrite content that already lives in the frozen report — this file exists to critique the skill, not to summarize findings.
 
+**The v-next reader has no access to the analyzed codebase** and usually no prior context about it — different user, different repo, possibly private. Write the retrospective so it stands alone for someone who will never see the project:
+
+- **Anonymize project specifics.** Do not name the repo, company, product, internal services, real file paths, real module names, real identifiers, real URLs, real stack names that would pinpoint the project, or distinctive domain vocabulary. Replace with generic stand-ins (`the repo`, `a payments-adjacent service`, `module-A`, `src/foo/bar.ts`, `an internal auth lib`) and keep the stand-in consistent within a bullet so structure stays readable.
+- **Strip secrets and sensitive findings.** No credentials, tokens, hostnames, IPs, customer names, real CVE write-ups tied to this code, or any vulnerability detail specific enough to exploit. If a security finding is the reason a retrospective bullet exists, describe the *class* of finding and the skill's behavior around it (`the security analyst missed an authz-bypass class that presented as {generic shape}`), not the exploit.
+- **Keep calibration signal intact.** Tier, stack family (e.g., "Python web backend + TypeScript SPA"), rough size (`~30k LOC`, `~180 analyst findings`), analyst token counts, wall time, and retention of which references/steps misfired are all safe and load-bearing. Do not anonymize them away.
+- **When in doubt, generalize.** A v-next change grounded in "on a T2 polyglot repo with an ORM-heavy data layer, the DB analyst's schema-drift checklist overfired on generated migrations" is just as actionable as the named version and carries no leakage risk.
+
 ---
 
 ## Writing rules (for both parts)
@@ -30,15 +37,20 @@ Fill this section at the end of Step 5, immediately after the report renders and
 ### Run identity
 
 ```
-Repo: {path or short name}
+Repo: {generic descriptor — e.g., "T2 Python+TS web app, ~40k LOC, ORM-heavy"; do NOT name the project}
+Stack family: {e.g., "Django + React SPA + Postgres"}
 Project tier called by Scout: {T1|T2|T3}
-Report directory: docs/code-analysis/{stem}/
+Skill revision: {short git SHA of codebase-deep-analysis used for this run — `git -C <skill-repo> rev-parse --short HEAD`}
+Skill source: {repo slug or URL the skill was loaded from, e.g., "tuxie/vibe @ plugins/codebase-deep-analysis"}
+Report directory: docs/code-analysis/{stem}/   (path-shape only; no project-specific segments)
 Analysts dispatched: {list}
 Analysts skipped: {list with reason}
 Step 3.5 consent: {granted | declined | static-only | skipped}
 Total wall time, approximate: {N minutes}
 Total output tokens, approximate: {sum across analysts}
 ```
+
+The **Skill revision** line is mandatory. V-next needs to diff the behavior described here against the exact code of the skill that produced it; without the SHA every critique is guesswork. Capture it at the *start* of the run and paste it here — not at the end, by which time the working tree may have drifted.
 
 ### What worked
 
@@ -125,7 +137,11 @@ Fill this section after the last cluster from this report has been resolved, def
 
 ### Run identity (carry from Part A)
 
+Re-state the Part A identity block (same anonymization rules) plus the fields below. If fix work spanned a skill upgrade, record the **fix-time skill revision** in addition to the run-time one — a divergence between the two is itself useful signal for v-next.
+
 ```
+Skill revision at report time: {short SHA, copied from Part A}
+Skill revision at fix time: {short SHA of skill HEAD when fix work concluded, if known}
 Report directory: docs/code-analysis/{stem}/
 Clusters at start: {N}
 Clusters closed: {N}
