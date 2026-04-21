@@ -17,6 +17,21 @@ Scope globs are advisory defaults; if the Scout's map reveals the project uses d
 | **Docs Consistency Analyst** | Sonnet | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `README.md`, `docs/**`, inline comments across whole repo | DOC-1..DOC-5, META-1, NAM-8 (user-visible text in docs), GIT-1, DEAD-3 |
 | **Coverage & Profiling Analyst** | Sonnet | Test directories, coverage artifacts (`coverage/**`, `lcov.info`, `coverage-summary.json`), bench/profile artifacts (`bench/**`, `flamegraph.*`, `*.prof`), `package.json` scripts / `Makefile` / `justfile` / `Taskfile*` targets | COV-1..COV-3, PROF-1..PROF-2 (new IDs — see coverage-profiling-prompt.md for definitions) |
 
+## `scripts/` directory ownership
+
+The `scripts/` top-level directory (or any repo-convention equivalent: `bin/`, `tools/`, `dev/`) does **not** belong wholesale to Tooling. Each script is owned by whichever analyst owns its *target*, not its location:
+
+- `scripts/bench-*`, `scripts/profile-*` → Coverage & Profiling.
+- `scripts/bench-render-math.ts` (targets client code) → Frontend.
+- `scripts/bench-api.ts` (targets server code) → Backend.
+- `scripts/check-coverage.ts`, `scripts/coverage-report.ts` → Coverage & Profiling.
+- `scripts/migrate-*`, `scripts/seed-*`, `scripts/db-*` → Database.
+- `scripts/release.sh`, `scripts/ci-*`, `scripts/build-*`, `scripts/publish-*` → Tooling.
+- `scripts/fuzz-*`, `scripts/sec-audit-*` → Security.
+- Everything else (default) → Tooling.
+
+If in doubt, ask: "If this script broke tomorrow, which analyst would notice first?" That is the owner. Record any non-obvious assignment in Run metadata under `Scope overrides`.
+
 ## Ownership collisions
 
 Where the same checklist ID appears under two agents (e.g., `QUAL-1` for both Backend and Frontend), each agent keeps its own checklist line scoped to its paths — they do **not** fight for a single `[x]`. Synthesis merges overlapping *findings* by anchor but leaves both checklist lines in the report with subscope noted (see `synthesis.md` §4).

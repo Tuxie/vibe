@@ -114,8 +114,11 @@ Each fix-session cluster becomes its own report file (`clusters/NN-{slug}.md`). 
    - **Split** any candidate exceeding the soft cap below.
    - **Rehome** stragglers (findings with unique hints) into the nearest cluster that shares a file or subsystem. If no fit exists, place them in a `misc-{severity}.md` cluster at the end.
 3. **Apply soft cap.** Target 5–10 findings per cluster. Split when >12. A cluster of 15+ is almost always two clusters wearing a trench coat.
-4. **Name clusters.** Use kebab-case slugs that describe the work, not the area (`swap-console-log-for-pino`, not `logging`). Prefix numbering reflects recommended fix order (Critical/High first, independent clusters before dependent ones).
-5. **Record per-cluster metadata:**
+4. **Apply floor rule.** Merge singleton clusters (1 finding) into the nearest topical cluster by default. A singleton survives only when **all** hold: (a) its fix is genuinely a self-contained session, (b) no other cluster shares its file or subsystem, AND (c) no other cluster shares its decision axis (autofix vs. needs-decision vs. needs-spec). "Topically isolated but small" is not enough — merge upward to the weakest adjacent cluster rather than ship a singleton. Expect ≤1 singleton per 10 clusters after synthesis.
+5. **Same-file, different-work-shape.** When two candidate clusters touch the same file but have distinct decision axes (parse hygiene vs. auth policy; type safety vs. error handling), split only if one is autofix-ready and the other is needs-decision (batching interviews matters more than batching commits). If both are autofix-ready, or both are needs-decision on the same subsystem, merge — they will ship in one commit anyway. Record the merge rationale in the cluster's `Notes:`.
+6. **Mechanical-cluster sanity check.** For clusters tagged `Autonomy: autofix-ready` with >3 findings, the cluster file's `Suggested session approach` block **must** walk at least one concrete implementation sketch — name the shape of the fix for the most non-trivial finding. "Mechanical substitution" alone is insufficient if any finding involves type narrowing, lifecycle changes, cross-module refactoring, or interaction with a pinned toolchain. If synthesis cannot sketch the shape, downgrade cluster `Autonomy` to `needs-decision`.
+7. **Name clusters.** Use kebab-case slugs that describe the work, not the area (`swap-console-log-for-pino`, not `logging`). Prefix numbering reflects recommended fix order (Critical/High first, independent clusters before dependent ones).
+8. **Record per-cluster metadata:**
 
 ```
 Cluster: {NN-slug}
@@ -124,13 +127,31 @@ Files touched: {N files, list top 5}
 Analysts involved: {list}
 Severity spread: {Critical: N, High: N, Medium: N, Low: N}
 Autonomy mix: {autofix-ready: N, needs-decision: N, needs-spec: N}
+Autonomy (cluster): {autofix-ready | needs-decision | needs-spec}  — weakest constituent autonomy: needs-spec > needs-decision > autofix-ready
 Est. session size: {Small (<2h) | Medium (half-day) | Large (full day+)}
-Depends on cluster(s): {none | NN, MM}  — only when one cluster's fix requires another's structure first
+Depends-on: {none | NN-slug[, MM-slug]}  — hard edge: fix requires another cluster's structure first
+informally-unblocks: {none | NN-slug[, MM-slug]}  — soft edge: this cluster lands easier after another; not an ordering constraint
+Pre-conditions: {none | bulleted list of "<file-or-cluster-ref>: <required state>"}
+attribution: {none | NN-slug (caught-by: MM-slug)}  — fuzz-gap attribution convention
 ```
 
 A finding belongs to **exactly one cluster**. If it genuinely spans two, pick the cluster where its fix is anchored; cross-reference in `Notes:`.
 
 Clusters are the primary unit of the final report. The Executive Summary lists cluster slugs, not individual findings, so the user can navigate directly to the session they want to run.
+
+### Attribution convention for fuzz-gap clusters
+
+When a fuzz-gap cluster's recommended fix uncovers a production bug whose scope belongs to a different cluster (e.g., a fuzz test finds that `sanitizeSession('%')` throws; the scope belongs to an input-validation cluster), the bug fix lands in the **fuzz cluster's commit** — since that is where the new test is added — but the cluster file's `attribution:` field names the originating cluster. Example: `attribution: 04-input-validation (caught-by: 15-fuzz-gaps)`. Do not re-file the bug under the origin cluster; do not duplicate the finding.
+
+### Pre-conditions inference
+
+For any cluster that introduces a pass/fail gate (a coverage threshold flipped on, a new lint rule, a `tsc --noEmit` in CI, a new test asserted in release workflow), walk every file in the cluster's scope:
+
+- List any that currently fail the gate as `Pre-conditions:` entries.
+- Cross-reference any fix-findings from other clusters that would clear the gate — name them as `<NN-slug>: landed` pre-conditions when they exist.
+- If the list is non-empty, the cluster's TL;DR block must acknowledge the pre-conditions in its Impact line (e.g., "gate enabled; currently-failing files fixed incidentally or batched in").
+
+This is what prevents the "one-line CI flip" from going red because two in-scope files were already below the threshold.
 
 ## 7. Executive Summary selection
 
@@ -154,10 +175,13 @@ Themes count as one item each for the cap; their severity is the highest single 
 Walk every checklist line the agents emitted:
 
 - **Bare `[x]` with no evidence** → demote to `[?]` and append `— defect: no evidence provided`.
+- **`[x]` with evidence text containing "dropped", "skipped", "not filed", or otherwise indicating the analyst analyzed but chose not to file** → demote to `[?]` and append `— defect: malformed clean — use \`[x] clean — <reason absence is fine for tier>\` instead`. The "analyzed, absence is deliberate" case belongs under the tightened `[x] clean` shape (see `agent-prompt-template.md` line-shape rules), not under `[x]`.
+- **`[x]` as a markdown table row** (any pipe-delimited form `| item | status | ... |` instead of the line shape) → demote the entire analyst's checklist to `[?] — defect: table-form checklist rejected; line shapes are load-bearing`. Do not attempt to parse the table into lines. Flag the analyst for a §10 re-dispatch with an explicit reminder about line shapes.
 - **`[x] clean` with no sampling statement** → demote to `[?]` and append `— defect: scope of "clean" claim unspecified`.
 - **`[-] N/A` that contradicts Scout's applicability flag OR mis-states the tier rule** → demote to `[?]`, append `— defect: contradicts {applicability|tier} rule; needs re-dispatch`, and flag the item for a targeted re-run.
 - **`[~] deferred` without a tracking location** → demote to `[?]` and append `— defect: deferred without tracking pointer`. A legitimate `[~]` has a cluster slug, issue link, or file path; otherwise it is a disguised `[?]`.
 - **`[~] deferred` with a tracking location** → accept verbatim. Add to the `Deferred this run` list in `not-in-scope.md` (see `report-template.md`).
+- **Cross-scope cite** (a finding cites a `file:line` outside the analyst's declared scope globs) → **not a defect**. The finding is still valid, just mis-attributed. Action: move the finding to the correct analyst's by-analyst section with a `→ originally raised by {AGENT_NAME}` pointer; keep `Raised by:` pointing at the original agent so attribution is preserved. Track the count in §1b health check (`Cross-scope cites: N` under Run metadata). Two or more cross-scope cites from the same analyst is a §10 re-dispatch trigger for scope calibration.
 - **Missing owned item** (agent did not emit a line for an item it owns) → synthesize `[?] inconclusive — agent did not address this item` and flag as defect.
 
 Defect-demoted lines appear verbatim; do not silently fix them. The user needs to see where the analysis was weakest.
@@ -176,21 +200,29 @@ Collect under `meta.md` in the report directory. If nothing repeats ≥3 times, 
 
 ## 10. Targeted re-dispatch (optional)
 
-If **any** of these hold, dispatch a **single targeted Opus Explore agent** to re-analyze the specific paths in question:
+Dispatch a **single targeted Opus Explore agent** to re-analyze specific paths when **any** of these hold:
 
-- §7 surfaced fewer than 3 Executive Summary clusters despite the codebase being non-trivial.
-- §8 flagged a defect that matters (missing scope coverage, tier contradiction, applicability contradiction).
 - §1b flagged ≥2 health signals on the same analyst (strong signal of under-analysis).
 - §1b flagged a high source-drop ratio where >50% of drops were "borderline" (over-aggressive filtering).
+- §8 flagged a defect that matters (missing scope coverage, tier contradiction, applicability contradiction).
+- §1b flagged `Suspiciously thin output` on an analyst AND that analyst's scope includes a security-sensitive surface (auth, subprocess, crypto, deserialization) — low finding count is load-bearing evidence only on surfaces where no findings is the norm.
+
+**Not a trigger on its own:** few Executive Summary clusters. On a well-maintained repo with a clean §1b health check, fewer than 3 H/C clusters is the correct output, not a weakness. The repo is the signal. Specifically: **if §1b fired zero flags AND Executive Summary is short, do not re-dispatch.** Accept the shorter report and move on.
 
 Merge the re-dispatch output back through §1–§8. Stop after one targeted pass — do not loop.
 
 ## 11. Re-synthesis for Depends-on resolution
 
-Between the freeze and any later fix work, cluster merges can resolve findings in other clusters incidentally (e.g., a finding tagged `Depends-on: cluster 01` that cluster 01's fix also handles). This is handled by the status-field bookkeeping layer, not the first-pass synthesis:
+Between the freeze and any later fix work, cluster merges can resolve findings in other clusters incidentally (e.g., a finding tagged `Depends-on: 01-ci-gate` that cluster 01's fix also handles). This is handled by the status-field bookkeeping layer, not the first-pass synthesis:
 
-- On the first synthesis pass, surface the dependency edge in both places: the downstream cluster metadata carries `Depends on cluster(s): {slug}`; the finding retains its `Depends-on:` line.
-- When a cluster is later marked `Status: closed` with a `Resolved-in: <commit|tag>` field (see `report-template.md` cluster template), any downstream finding whose `Depends-on:` names that cluster is eligible for mark-as-resolved-by-dep. The user (or a targeted re-synthesis pass) confirms by reading the resolving commit and, if genuinely fixed, striking the finding through with `Status: resolved-by-dep (cluster NN)` rather than re-opening the downstream cluster.
+- **Canonical render of `Depends-on:`.** Slug only, no `cluster` prefix, no hash. One slug per line for multiple.
+  - In cluster frontmatter: `Depends-on: 02-coverage-baseline`
+  - In a finding body: `Depends-on: 02-coverage-baseline`
+  - In TL;DR prose: "*Depends on cluster 02 (coverage-baseline): this cluster's gate-flip requires those fixes to land first.*"
+  - In the README cluster index: adjacency marker `→ 02` rendered after the cluster's line.
+- **Canonical render of `informally-unblocks:`.** Same shape. README index marker `⇢ 02` (soft edge, distinct from the hard `→`). These are not ordering constraints — fix coordinators may violate them without penalty if the sequencing doesn't matter.
+- On the first synthesis pass, surface the dependency edge in both places: the downstream cluster frontmatter carries `Depends-on: {slug}`; the individual finding retains its `Depends-on:` line.
+- When a cluster is later marked `Status: closed` with a `Resolved-in: <commit|tag>` field (see `report-template.md` cluster template), any downstream finding whose `Depends-on:` names that cluster is eligible for mark-as-resolved-by-dep. The user (or a targeted re-synthesis pass) confirms by reading the resolving commit and, if genuinely fixed, striking the finding through with `Status: resolved-by-dep (cluster NN-slug)` rather than re-opening the downstream cluster.
 - Do **not** auto-resolve based on dep edges alone. "Cluster 01 merged" ≠ "finding X is fixed"; the edge is a prompt to check, not a conclusion.
 
 ## 12. Scope expansion is a legitimate outcome

@@ -85,6 +85,7 @@ Answer each with `present` / `absent` plus one-line evidence. These prune analys
 - `iac` — terraform / k8s manifests / helm / pulumi / cloudformation present.
 - `monorepo` — workspace config (`pnpm-workspace.yaml`, `package.json#workspaces`, nx/turbo/bazel monorepo, cargo workspaces, go workspaces).
 - `web-facing-ui` — frontend exists AND is user-facing on the public internet (not an internal dashboard behind auth-only). If uncertain, say `uncertain — {evidence}`; synthesis treats `uncertain` as `present` for Security/A11Y and `absent` for SEO.
+  - **Sub-flag `auth-gated`.** If `web-facing-ui: present` AND all routes serving HTML require authn (no landing page, no marketing site, no public docs route, no unauthenticated error page that indexers would crawl), append `, auth-gated`. Example emitted line: `web-facing-ui: present, auth-gated — all / routes require bearer cookie; no unauthenticated index`. Frontend agent uses this to default SEO-class checklist items to `[-] N/A — auth-gated UI, no crawlable surface` without re-deriving. If a public marketing route exists alongside the auth-gated app, omit the sub-flag and note the split in Notable oddities.
 - `i18n-intent` — i18n framework import, `locales/` dir, bidi CSS, or explicit docs mention.
 
 `security-surface` and `docs` default to `present` unless the repo is demonstrably trivial (single algorithm file with no I/O).
@@ -93,23 +94,40 @@ Answer each with `present` / `absent` plus one-line evidence. These prune analys
 
 `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `README.md` often specify behaviors, file paths, or invariants that the code has silently moved away from. This section surfaces that drift risk cheaply so the Docs analyst (and synthesis) know where to look. You are not verifying claims — just flagging suspected staleness.
 
+Two independent signals are collected per doc. The final call requires **both** to be clean for `fresh`; either dirty produces a `drifted` call with a sub-reason. This is because a high-velocity solo repo can touch a doc daily (timestamp fresh) while the touches cover unrelated micro-edits and the doc's references-to-code are stale (structurally drifted). Timestamp alone misses that shape.
+
 For each of `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and top-level `README.md` that exists:
+
+### Signal 1 — timestamp drift
 
 1. `git log -1 --format='%h %ci' -- <file>` — last change to the doc itself.
 2. Read the first ~50 lines of the doc and collect the file paths / directory names / command names it mentions (skim only; full correctness check is the Docs analyst's job).
 3. For up to ~5 referenced source paths, `git log -1 --format='%h %ci' -- <path>` — last change to each reference.
-4. If any referenced path has been modified more recently than the doc by ≥30 days AND the doc itself has not been touched in ≥90 days, mark the doc `likely-drifted`. Otherwise `fresh` or `unknown` (doc references external/generic paths only).
+4. If any referenced path has been modified more recently than the doc by ≥30 days AND the doc itself has not been touched in ≥90 days, timestamp-signal is **dirty**. Otherwise **clean**.
 
-Emit:
+### Signal 2 — structural drift
+
+1. Grep the doc for file-path-shaped references: lines matching `\bsrc/[a-zA-Z_][a-zA-Z0-9_/.-]+\b`, `\bapp/…`, `\btests?/…`, `\bpackages/…`, `\b(?:lib|internal|cmd|pkg|api)/…` (adapt to the repo's top-level directories).
+2. For each distinct referenced path (up to ~20), check existence via `rg --files | grep -Fx <path>` or `ls <path>`. Count `present` vs. `missing`.
+3. If `missing / total ≥ 0.20` (≥20% of referenced paths are gone or moved), structural-signal is **dirty**. Otherwise **clean**.
+4. Cap at 20 references checked per doc to bound scout cost. If a doc references >20 paths, sample uniformly; do not skip this signal.
+
+### Call
 
 ```
 Docs drift:
-- CLAUDE.md — last change {sha date}; status: {fresh | likely-drifted | unknown}; {one-line reason when drifted, e.g., "references src/lib/cli/router.ts last touched 2025-12-04, doc last touched 2025-08-12"}
+- CLAUDE.md — last change {sha date}; status: {fresh | drifted-timestamp | drifted-structurally | drifted-both | unknown}; {one-line reason when drifted}
 - AGENTS.md — ...
 - ...
 ```
 
-If no instruction-file drift risk is evident, emit `Docs drift: none suspected — <one-line basis>`. The Docs analyst reads this block and prioritizes its read order.
+- `fresh` — both signals clean.
+- `drifted-timestamp` — signal 1 dirty, signal 2 clean.
+- `drifted-structurally` — signal 1 clean, signal 2 dirty.
+- `drifted-both` — both dirty.
+- `unknown` — doc has no code-shaped references (or <3 total); signal 2 is not meaningful.
+
+If no instruction-file drift risk is evident across all present docs, emit `Docs drift: none suspected — <one-line basis>`. The Docs analyst reads this block and prioritizes its read order.
 
 ## Pre-release verification surface
 
