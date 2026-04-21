@@ -270,7 +270,7 @@ Split out from DB: a good schema can still be delivered unsafely.
 
 ## COV — Test coverage
 
-Runs in the gated Step 3.5 pass. Items that require running the coverage command emit `[?] inconclusive — execution declined` if the user did not grant Step 3.5 consent; the static analogues still run.
+Runs in the gated Step 3.5 pass. Items that require running the coverage command emit `[?] inconclusive — execution declined` when the Step 0 preflight selected `static-only`; the static analogues still run.
 
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|

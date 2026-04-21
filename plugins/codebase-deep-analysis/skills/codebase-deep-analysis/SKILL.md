@@ -9,7 +9,9 @@ description: Use when asked to perform an exhaustive deep analysis of an entire 
 
 Dispatch parallel Explore subagents to analyze every **applicable** layer of the codebase — backend, frontend, tests, tooling, database, documentation, security — then synthesize findings into a **directory** of markdown files that a brainstorming session can consume one cluster at a time.
 
-**The only writes permitted are to `docs/code-analysis/`** (the report directory and a scratch subdirectory). No code modifications. Read-only shell commands only, with **one carefully-bounded exception**: Step 3.5 may invoke the project's own existing coverage and bench commands if — and only if — the user grants a second explicit consent specifically for that step. Never run builds, migrations, installs, or any other subcommand that mutates state.
+**The only writes permitted are to `docs/code-analysis/`** (the report directory and a scratch subdirectory). No code modifications. Read-only shell commands only, with **one carefully-bounded exception**: Step 3.5 may invoke the project's own existing coverage and bench commands — but only if the user authorized dynamic execution at Step 0's single consolidated consent prompt. Never run builds, migrations, installs, or any other subcommand that mutates state.
+
+**All user interaction happens in Step 0.** Preflight captures every decision the run will need (proceed / abort, dynamic-execution mode, command overrides) in a single consolidated prompt so the rest of the run can proceed unattended — suitable for overnight execution. Steps 1 – 6 never prompt the user.
 
 **Two core principles, equally important:**
 
@@ -27,7 +29,7 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 | `references/checklist.md` | Stable checklist IDs with min-tier tags, agent ownership, and the full set of checklist-line shapes |
 | `references/synthesis.md` | Dedup, right-sizing filter, hybrid clustering (incl. singleton floor, same-file split/merge, mechanical sanity check, fuzz attribution), severity resolution, Executive Summary, Depends-on handling, scope-expansion rules |
 | `references/report-template.md` | Three rendering modes (single-file / compact multi-file / full multi-file) with cluster frontmatter schema (`Status:`, `Autonomy:`, `Resolved-in:`, `Depends-on:`, `informally-unblocks:`, `Pre-conditions:`, `attribution:`) |
-| `references/coverage-profiling-prompt.md` | Prompt for the Step 3.5 gated analyst; static-only default, dynamic execution requires second user consent, user-override for detected command |
+| `references/coverage-profiling-prompt.md` | Prompt for the Step 3.5 gated analyst; consumes the Step 0 consolidated preflight decision (no mid-run prompts) |
 | `references/analysis-analysis-template.md` | Two-part retrospective template (runner + fix coordinator) written **to the next skill version's author** — primary RED-phase input for v-next |
 | `scripts/render-status.sh` | Rebuilds the cluster-index block from each cluster's `Status:` / `Autonomy:` fields. Copied into the report directory at Step 5 so the fix coordinator can run it without the skill repo on disk. |
 | `VERSION` | Stable skill version string; used by Step 6's revision-capture fallback chain when the skill is loaded from a plugin cache without `.git/`. |
@@ -61,12 +63,47 @@ digraph analysis_flow {
 
 ## Step 0 — Preflight
 
+**Design rule: Step 0 is the only step that may prompt the user.** Every decision the run will need (proceed, dynamic-execution mode, command overrides) is captured here in a single consolidated prompt so the rest of the run — Steps 1 through 6 — can execute unattended. A user should be able to kick off this skill before going to bed and wake up to a finished report.
+
 1. **Capture the skill's own revision up-front** (see Step 6 for the fallback chain). Keep the value in the orchestrator's working memory so it lands in `analysis-analysis.md` even if the skill repo becomes unavailable partway through.
+
 2. **Load deferred tools.** `AskUserQuestion`, `TaskCreate`, and `TaskUpdate` may be deferred tools in your harness (visible by name in a `<system-reminder>` but not callable until their schemas load). If a tool call fails with `InputValidationError`, run `ToolSearch` with `select:AskUserQuestion,TaskCreate,TaskUpdate` first, then retry. This is cheap and saves a round-trip at the consent prompt.
-3. **Token warning with a single ask.** Tell the user: *"This run dispatches several analyst subagents in parallel and will consume a large number of tokens. It is best run when weekly quota has spare headroom. The skill will auto-detect coverage/bench commands in Step 3.5 but will confirm with you before running them — if the detected command is wrong, you can correct it at the consent prompt. Proceed?"* Use `AskUserQuestion` (or equivalent single prompt). If the user does not answer within a reasonable window, or answers no, abort with a short status message. Never block indefinitely.
-4. **Check git state, but do not gate on it.** Run `git status --porcelain`. If output is non-empty, warn the user that any `file:line` references in the resulting report may shift if they later commit or revert. Do **not** abort — this skill is read-only and a dirty tree is not a safety issue.
-5. **Pick a non-clobbering report directory.** Default: `docs/code-analysis/YYYY-MM-DD/`. If that directory already exists, use `YYYY-MM-DD-HHMMSS/` instead. Never overwrite a prior report directory.
-6. **Create the directory skeleton,** empty. Include `.scratch/` always; include `clusters/` and `by-analyst/` only if you already know you'll render in full multi-file mode (otherwise wait until Step 5, when synthesis's finding count reveals the rendering mode). The `scripts/` subdirectory is created at Step 5 rendering time with `render-status.sh` copied in.
+
+3. **Detect coverage and bench commands now** (no Scout required for this). Read, in order of preference: `package.json` scripts (keys matching `cov`, `coverage`, `bench`, `benchmark`, `profile`), top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml` `[tool.*.scripts]` equivalents. Record the most-specific match per category. Possible outcomes per category:
+   - `auto-detected:<cmd>` — exactly one plausible command found (e.g., `bun run coverage:check`).
+   - `auto-detected:<cmd> (+ N alternatives)` — multiple plausible commands found; pick the most-specific but list the alternatives in the prompt.
+   - `none-detected` — no candidate.
+
+4. **Single consolidated consent prompt.** Issue **one** `AskUserQuestion` call that captures every decision the run will need. The prompt must include:
+
+   - The token warning: *"This run dispatches several analyst subagents in parallel and will consume a large number of tokens. It is best run when weekly quota has spare headroom."*
+   - The detected coverage command and bench command (or `none-detected` for either/both).
+   - A choice of execution mode:
+     - `Run both dynamic passes (coverage + bench)`
+     - `Run coverage only`
+     - `Run bench only`
+     - `Static-only — no project commands run`
+     - `Let me correct the detected commands first`
+     - `Abort`
+   - A note: *"After you answer this prompt, the rest of the run will proceed unattended through Steps 1 – 6. No further user interaction is required."*
+
+   If the user picks `Let me correct the detected commands first`, issue a **second** `AskUserQuestion` with free-text slots for each command, then re-issue the primary prompt with the user-corrected values (provenance `user-corrected:<cmd>`) so the user confirms the mode choice with the corrected commands in view. Maximum two round-trips — after that, accept whatever the user last picked.
+
+   If the user does not answer within a reasonable window, or picks `Abort`, emit a short status message and stop. Never block indefinitely.
+
+5. **Record the preflight decision** in the orchestrator's working memory for the rest of the run:
+   ```
+   EXECUTION_MODE       = both | coverage-only | bench-only | static-only
+   COVERAGE_CMD         = auto-detected:<cmd> | user-corrected:<cmd> | none-detected
+   BENCH_CMD            = auto-detected:<cmd> | user-corrected:<cmd> | none-detected
+   ```
+   Step 3.5 consumes these values non-interactively.
+
+6. **Check git state, but do not gate on it.** Run `git status --porcelain`. If output is non-empty, note in Run metadata that any `file:line` references in the resulting report may shift if the tree is committed or reverted afterward. Do **not** prompt the user — a dirty tree is not a safety issue and the user has already authorized the run.
+
+7. **Pick a non-clobbering report directory.** Default: `docs/code-analysis/YYYY-MM-DD/`. If that directory already exists, use `YYYY-MM-DD-HHMMSS/` instead. Never overwrite a prior report directory.
+
+8. **Create the directory skeleton,** empty. Include `.scratch/` always; include `clusters/` and `by-analyst/` only if you already know you'll render in full multi-file mode (otherwise wait until Step 5, when synthesis's finding count reveals the rendering mode). The `scripts/` subdirectory is created at Step 5 rendering time with `render-status.sh` copied in.
 
 ## Step 1 — Structure Scout
 
@@ -115,16 +152,24 @@ Hard rules the wrapper + ground rules enforce (read both before editing):
 - `Fix:` lines recommending a tool invocation (`bunx X`, `pnpm X`, `cargo X --flag`) must verify against the project's pinned toolchain (`.bun-version`, `.nvmrc`, `rust-toolchain.toml`, `.tool-versions`, `package.json#packageManager`). If the pin predates the invocation's availability or is not verifiable, Confidence downgrades to `Plausible` and the finding cannot be `autofix-ready`.
 - Every owned checklist item gets one of five canonical line shapes: `[x] <evidence pointer>`, `[x] clean — <what was sampled or why absence is fine for tier>`, `[-] N/A — <reason>`, `[?] inconclusive — <what was tried>`, `[~] deferred — <reason + tracking>`. Bare `[x]` is a defect. Table-form checklists are a defect (`| Item | Status | ... |` rows are rejected wholesale; see synthesis §8).
 
-## Step 3.5 — Coverage & Profiling (gated, optional)
+## Step 3.5 — Coverage & Profiling (non-interactive)
 
-This is the **only** step in the skill that may invoke project commands. It runs only when the user grants a second, explicit consent — do not roll it into Step 0's blanket approval.
+This step consumes the preflight decision from Step 0 — no prompting happens here. If a run started unattended, it stays unattended.
 
-1. **Detect candidates without running anything.** Read `package.json` scripts, top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml`'s `[tool.*.scripts]` equivalents. Identify the coverage command (names containing `cov`, `coverage`, or a test runner flag like `--coverage`) and the bench/profile command (names containing `bench`, `benchmark`, `profile`). There may be zero, one, or both.
-2. **Ask once, with override option.** Use `AskUserQuestion` with the detected commands laid out plainly. Example: *"Step 3.5 can run the project's own coverage (`{cmd}`) and benchmarks (`{cmd}`) and fold the results into the report. This executes project code — unlike every other step in this skill. Proceed? [Run both with these / Run coverage only / Run bench only / Static-only / Skip / **Correct commands first**]"* If the user chooses `Correct commands first`, re-prompt with free-text override slots for each command; then re-issue the consent prompt with the corrected values. Do not block indefinitely; default to **Static-only** if the user does not answer in a reasonable window.
-3. **Dispatch the Coverage & Profiling analyst** with the prompt in `references/coverage-profiling-prompt.md`. Pass `{EXECUTION_CONSENT}` = `granted` or `declined`; pass `{DETECTED_COVERAGE_CMD}` and `{DETECTED_BENCH_CMD}` as one of `auto-detected:<cmd>`, `user-corrected:<cmd>`, or `none-detected`. The analyst records the provenance in its metadata line so synthesis can show whether the user corrected detection. The analyst is the single choke point for runtime invocation: the orchestrator does not run anything itself.
-4. **Merge output into synthesis.** The analyst's findings and checklist lines flow through Step 4 the same way as every other analyst — the only novelty is the optional dynamic-pass Confidence upgrade from Plausible to Verified on covered items.
+Map Step 0's `EXECUTION_MODE` to analyst dispatch:
 
-If the user chose **Skip**, omit the analyst entirely and record `Coverage & Profiling: skipped (user declined)` in Run metadata. The analyst is not silent on decline — static-only is its default mode.
+| `EXECUTION_MODE` | Dispatch | `{EXECUTION_CONSENT}` |
+|------------------|----------|------------------------|
+| `both` | Dispatch Coverage & Profiling with both commands live | `granted` |
+| `coverage-only` | Dispatch, but pass `BENCH_CMD = none-detected` so bench pass is skipped | `granted` |
+| `bench-only` | Dispatch, but pass `COVERAGE_CMD = none-detected` so coverage pass is skipped | `granted` |
+| `static-only` | Dispatch with both commands passed as captured, but `{EXECUTION_CONSENT} = declined` | `declined` |
+
+1. **Dispatch the Coverage & Profiling analyst** with the prompt in `references/coverage-profiling-prompt.md`. Substitutions: `{EXECUTION_CONSENT}`, `{DETECTED_COVERAGE_CMD}`, `{DETECTED_BENCH_CMD}` all come from the Step 0 preflight capture. The analyst is the single choke point for runtime invocation; the orchestrator does not run anything itself.
+
+2. **Merge output into synthesis.** The analyst's findings and checklist lines flow through Step 4 the same way as every other analyst — the only novelty is the optional dynamic-pass Confidence upgrade from Plausible to Verified on covered items.
+
+If the user chose `Abort` at Step 0, this step is never reached. There is no separate "skip" mode in v3.1+ — `static-only` is the zero-execution path, and it still dispatches the analyst (which runs its full static pass). Record `Coverage & Profiling: static-only` or the relevant mode in Run metadata.
 
 ## Step 4 — Synthesis
 
@@ -234,7 +279,8 @@ There is **no** "when unsure, pick the more powerful tier" override. Unsure stay
 - **Postponing Part A.** If the orchestrator defers Part A to "write it later", the useful details are already gone. Part A is a Step 6 deliverable, not a follow-up.
 - **Trusting Scout's applicability or tier flags blindly.** If an analyst finds evidence that an applicability flag was wrong or the tier classification mismatches reality, it says so in its Summary; synthesis re-dispatches or re-tiers.
 - **Cluster-hint sprawl.** If every finding has its own unique cluster hint, clustering collapses into one-finding-per-file and the multi-file report is useless. Keep hints to a small controlled vocabulary per run.
-- **Rolling Step 3.5 consent into the Step 0 token warning.** They are different approvals — Step 3.5 runs project code. Ask separately or skip the dynamic pass.
+- **Prompting the user anywhere outside Step 0.** Step 0 captures every decision the run needs (proceed / abort, execution mode, command overrides) in a single consolidated prompt so the run can proceed unattended. Steps 1 – 6 must not call `AskUserQuestion`. If a mid-run ambiguity arises, either resolve it with a reasonable default and log the choice in Run metadata, or fail the affected finding to `[?] inconclusive — would have required user input, deferred by unattended-run contract`.
+- **Asking a second consent before Step 3.5.** Step 3.5 is non-interactive in v3.1+. The dynamic-execution authorization lives in the Step 0 `EXECUTION_MODE` value. If you find yourself wanting to re-ask, stop — the user explicitly designed this skill to run overnight.
 - **Auto-resolving `Depends-on:` findings when the upstream cluster merges.** The edge is a prompt to check, not a conclusion. See `synthesis.md` §11.
 - **Silent scope expansion during fix work.** When a cluster's fix must touch adjacent files to pass a verification gate, document every extra file under an `Incidental fixes` section in the commit message. See `synthesis.md` §12.
 - **Quoting secrets.** Describe presence, never contents.

@@ -1,14 +1,14 @@
 # Coverage & Profiling Analyst prompt
 
-This analyst is the **only** analyst in the skill that may execute project commands. It runs in Step 3.5 — after Step 3's parallel read-only fan-out, under a second explicit user consent, never in the default flow. Without that consent, it runs a static-only pass.
+This analyst is the **only** analyst in the skill that may execute project commands. It runs in Step 3.5 — after Step 3's parallel read-only fan-out — under the execution authorization captured at Step 0's single consolidated consent prompt. Without that authorization (`EXECUTION_CONSENT = declined`, from `EXECUTION_MODE = static-only`), it runs a static-only pass. There is no mid-run consent prompt in v3.1+.
 
 Fill placeholders `{SKILL_DIR}`, `{CODEBASE_MAP_PATH}`, `{PROJECT_TIER}`, `{TIER_RATIONALE}`, `{OWNED_CHECKLIST_ITEMS}`, `{CLAUDE_MD_FILES}`, `{APPLICABILITY_FLAGS}`, `{EXECUTION_CONSENT}`, `{DETECTED_COVERAGE_CMD}`, `{DETECTED_BENCH_CMD}` before dispatching. `EXECUTION_CONSENT` is `granted` or `declined`.
 
 **Command provenance.** `{DETECTED_COVERAGE_CMD}` and `{DETECTED_BENCH_CMD}` each arrive as one of three shapes:
 
-- `auto-detected:<cmd>` — the orchestrator found this in `package.json` / `Makefile` / `justfile` / `Taskfile*` and the user accepted it verbatim.
-- `user-corrected:<cmd>` — the orchestrator detected something but the user overrode it at the Step 3.5 consent prompt. Trust verbatim.
-- `none-detected` — no candidate found; any dynamic pass for that command is skipped.
+- `auto-detected:<cmd>` — the orchestrator found this in `package.json` / `Makefile` / `justfile` / `Taskfile*` during Step 0 preflight and the user accepted it verbatim.
+- `user-corrected:<cmd>` — the orchestrator detected something but the user overrode it at the Step 0 consolidated consent prompt. Trust verbatim.
+- `none-detected` — no candidate found at Step 0; any dynamic pass for that command is skipped regardless of `EXECUTION_CONSENT`.
 
 Never invent commands. Never treat `none-detected` as permission to pick a default.
 

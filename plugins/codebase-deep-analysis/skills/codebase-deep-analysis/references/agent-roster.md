@@ -45,9 +45,9 @@ Joint items (e.g., `CI-1` owned by Tooling + Security, `FUZZ-1` by Test + Securi
 
 ## Gated analyst: Coverage & Profiling
 
-Unlike every other analyst, Coverage & Profiling may **run** project commands (coverage target, bench target). That breaks the read-only invariant of the rest of the skill, so it is gated behind a second explicit user consent in Step 3.5 — it does **not** dispatch in the Step 3 parallel fan-out. It is also static-capable: if the user declines the execution step, it still produces a static gap-analysis pass (source→test mapping, missing-test inference, bench-target presence check) without running anything.
+Unlike every other analyst, Coverage & Profiling may **run** project commands (coverage target, bench target). That breaks the read-only invariant of the rest of the skill, so it is gated behind the execution authorization captured at Step 0's single consolidated consent prompt — it does **not** dispatch in the Step 3 parallel fan-out. It is also static-capable: if the user chose `static-only` at Step 0, the analyst still produces a static gap-analysis pass (source→test mapping, missing-test inference, bench-target presence check) without running anything. Step 3.5 itself is non-interactive in v3.1+.
 
-See `coverage-profiling-prompt.md` for the analyst's prompt; see SKILL.md Step 3.5 for the consent/execution protocol.
+See `coverage-profiling-prompt.md` for the analyst's prompt; see SKILL.md Step 0 (preflight capture) and Step 3.5 (non-interactive dispatch) for the execution protocol.
 
 ## Escalation
 

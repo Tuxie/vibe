@@ -45,7 +45,7 @@ Skill source: {repo slug or URL the skill was loaded from, e.g., "tuxie/vibe @ p
 Report directory: docs/code-analysis/{stem}/   (path-shape only; no project-specific segments)
 Analysts dispatched: {list}
 Analysts skipped: {list with reason}
-Step 3.5 consent: {granted | declined | static-only | skipped}
+Step 0 execution mode: {both | coverage-only | bench-only | static-only}   (v3.1+: captured at single preflight prompt; Step 3.5 no longer prompts)
 Total wall time, approximate: {N minutes}
 Total output tokens, approximate: {sum across analysts}
 ```
