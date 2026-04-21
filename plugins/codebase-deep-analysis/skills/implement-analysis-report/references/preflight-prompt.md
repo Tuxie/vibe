@@ -9,7 +9,9 @@ Gather these before the user sees anything — the prompt itself shows summarize
 1. **Report directory.** Either passed as the skill's argument or defaulted to the newest `docs/code-analysis/*/` directory. Verify it exists and contains a recognizable layout (`README.md` + `clusters/` dir, `REPORT.md` with `<!-- cluster:NN:start -->` markers, or `README.md` + no clusters — fail cleanly if none).
 2. **cda version compatibility.** Read `{report-dir}/.scratch/codebase-map.md` first line or look for the v3+ frontmatter fields in any cluster (`Autonomy:`, `informally-unblocks:`). Abort with a clear message if the report predates v3.0.
 3. **Dependencies installed.** Probe the harness for `superpowers:subagent-driven-development`. If not discoverable, abort before any user interaction.
-4. **Cluster enumeration.** Walk every cluster (full-multi-file: `clusters/*.md`; compact-multi-file: same; single-file: parse `<!-- cluster:NN:start -->` / `<!-- cluster:NN:end -->` blocks from `REPORT.md`). For each cluster collect: slug, goal, Autonomy, Depends-on, informally-unblocks, Pre-conditions, per-cluster `gate:` override (if any), needs-decision question (from Suggested session approach block).
+4. **Cluster enumeration.** Walk every cluster (full-multi-file: `clusters/*.md`; compact-multi-file: same; single-file: parse `<!-- cluster:NN:start -->` / `<!-- cluster:NN:end -->` blocks from `REPORT.md`). For each cluster collect: slug, goal, **Status**, Autonomy, Depends-on, informally-unblocks, Pre-conditions, per-cluster `gate:` override (if any), needs-decision question (from Suggested session approach block). Also partition the collected list into two groups:
+   - **Active**: `Status` ∈ {`open`, `in-progress`}. Eligible for the default `all` subset.
+   - **Terminal**: `Status` ∈ {`closed`, `partial`, `deferred`, `resolved-by-dep`}. Excluded from the default `all` subset; only processed if the user sets `include-terminal: true`.
 5. **Gate detection.** Read `package.json` scripts, top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml` `[tool.*.scripts]`. Build the baseline set per `gate-detection.md` rules.
 6. **Current branch and working-tree state.** `git rev-parse --abbrev-ref HEAD`, `git status --porcelain`. Needed to surface warnings in the prompt (uncommitted changes + non-current-branch strategy = warning; uncommitted changes + current-branch strategy = warning; clean tree = no warning).
 
@@ -23,12 +25,21 @@ Implement Analysis Report
 Report: {report-dir}  (cda v{version}, {N} clusters)
 
 == CLUSTER SUBSET ==
-All clusters (default)
-  [will process all {N} clusters in topological Depends-on order]
+All active clusters (default)
+  [will process {N_active} open / in-progress clusters in topological Depends-on order]
+  [{N_terminal} terminal-state clusters (closed / partial / deferred / resolved-by-dep)
+   are skipped — set `include-terminal: true` to re-attempt them]
 Only specific clusters
-  [user lists slugs; the rest stay open]
+  [user lists slugs; the rest stay untouched; terminal-state slugs in the list
+   warn and require `include-terminal: true` to proceed]
 All except specific clusters
-  [user lists slugs to skip; the rest proceed]
+  [user lists active slugs to skip; the remaining active set proceeds]
+
+Re-attempt terminal-state clusters? ( ) No (default)  ( ) Yes — include-terminal: true
+  [Use on a resumption run when you want to re-verify already-closed clusters
+   against current code (drift check) or retry a deferred cluster. Only the
+   clusters you explicitly include are attempted; their Status remains whatever
+   it was until the re-attempt commits or defers again.]
 
 == DECISIONS (needs-decision clusters in subset) ==
 For each needs-decision cluster in the subset, show a question derived
@@ -82,6 +93,8 @@ After the user's final answer, record a `PREFLIGHT_DECISIONS` object in working 
 ```
 PREFLIGHT_DECISIONS = {
   "cluster_subset": "all" | "only: [slug, slug]" | "all-except: [slug, slug]",
+  "include_terminal": false,   # default; when true, clusters in terminal Status are eligible for re-attempt
+  "session_number": 1,         # computed by scanning analysis-analysis.md for prior `## Part B ... (session N, ...)` headings and picking N+1
   "decisions": {
     "04-auth-rewrite": "answer text",
     ...
@@ -91,7 +104,7 @@ PREFLIGHT_DECISIONS = {
     ...
   },
   "branch_strategy": "new-branch" | "current-branch" | "worktree",
-  "branch_name": "fix/deep-analysis-2026-04-21",  # derived when relevant
+  "branch_name": "fix/deep-analysis-2026-04-21",  # derived when relevant; reused if already exists on resumption
   "gates": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
@@ -117,3 +130,6 @@ If the user does not respond to the primary prompt, exit cleanly with a message:
 - **Asking anything before detecting everything.** Do all detection first; the prompt shows a summary, not live questions.
 - **Re-asking a decision mid-run.** Every `needs-decision` cluster's question lives here or nowhere.
 - **Silently defaulting a branch on a dirty tree.** If the tree has uncommitted changes AND the user picks `current-branch`, show a warning line in the prompt and require explicit confirmation. Do not auto-stash.
+- **Including terminal-state clusters in `all` by default.** Resumption must be safe. Auto-filter terminal-state clusters from the default `all` subset; surface the count so the user knows what was skipped; require explicit `include-terminal: true` to re-attempt.
+- **Forgetting to compute `session_number`.** On resumption, the Part B writer needs `N+1`. Scan `analysis-analysis.md` for `^## Part B — Fix coordinator retrospective \(session (\d+)` headings and pick `max(N) + 1`. First run always yields `1`.
+- **Recreating an existing branch on resumption.** If `branch_strategy = new-branch` AND the computed `branch_name` already exists, `git checkout` it and fast-forward if possible. Only abort if the branch is in a state incompatible with continued work (e.g., diverged from origin in a way git won't fast-forward).

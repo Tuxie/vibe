@@ -58,10 +58,10 @@ digraph iar_flow {
 
 See `references/preflight-prompt.md` for the full template. The step emits exactly one `AskUserQuestion` (plus at most one follow-up if the user picks `edit detected commands / gates first`). It captures:
 
-- Cluster subset (`all` / `only: [slugs]` / `all-except: [slugs]`)
+- Cluster subset (`all` / `only: [slugs]` / `all-except: [slugs]`). **`all` auto-filters clusters in a terminal state** (`closed`, `partial`, `deferred`, `resolved-by-dep`) so resumption runs only touch clusters that still need work. The prompt shows the skipped-terminal count for transparency. To force re-attempting already-terminal clusters (e.g., to re-verify after drift), set `include-terminal: true` at preflight.
 - One decision answer per `needs-decision` cluster in the subset
 - Per `needs-spec` cluster: auto-defer to `docs/ideas/<slug>.md` (default) or free-text spec now
-- Branch strategy: `new-branch` (default, `fix/deep-analysis-{YYYY-MM-DD}`) / `current-branch` / `worktree`
+- Branch strategy: `new-branch` (default, `fix/deep-analysis-{YYYY-MM-DD}`) / `current-branch` / `worktree`. On a resumption run, `new-branch` reuses the existing branch if it already exists (e.g., `fix/deep-analysis-2026-04-21` created by session 1), and fast-forwards rather than recreating.
 - Verification gates (auto-detected set, user-editable)
 - Dry-run toggle (default off)
 - Proceed / abort
@@ -113,7 +113,7 @@ Only handles clusters the user chose to `resolve` in Step 3. Execution matches S
 
 ## Step 5 — Part B retrospective
 
-See `references/partb-writer.md`. Opens `{report-dir}/analysis-analysis.md`, locates the Part B section template left by cda Step 6, and fills it using the data collected during the run (cluster order attempted, outcomes, timings, showstoppers, incidentals, branch strategy, gate list). Anonymization matches cda's Part A contract.
+See `references/partb-writer.md`. Opens `{report-dir}/analysis-analysis.md` and **appends a new per-session Part B section** using the data collected during the run (cluster order attempted, outcomes, timings, showstoppers, incidentals, branch strategy, gate list). Each session writes its own section with heading `## Part B — Fix coordinator retrospective (session N, YYYY-MM-DD, iar {version})`, where `N` is derived by scanning the file for existing Part B headings. The skill's own revision is captured via the fallback chain (`sha:` → `version:` → `skill-md-hash:`) so each session's retrospective is identifiable even when future iar versions differ. Never overwrites a prior session's Part B. Anonymization matches cda's Part A contract.
 
 ## Model selection
 
@@ -130,6 +130,8 @@ Default orchestrator model: whichever Claude instance invokes the skill — no e
 - **Skipping Part B.** The retrospective is the mechanism by which iar evolves. An empty or boilerplate Part B is worse than none. Write specifics while they are fresh.
 - **Running a second AskUserQuestion for gate overrides.** Gate overrides per cluster live in cluster frontmatter (`gate:` field), set during cda synthesis. If a gate override is missing, inherit the preflight baseline — do not re-ask.
 - **Parallel cluster execution.** Clusters run strictly sequentially. Shared working tree semantics + `Depends-on:` edges make parallelism unsafe.
+- **Re-attempting already-terminal clusters silently.** `Status: closed` / `partial` / `deferred` / `resolved-by-dep` clusters auto-filter from the default `all` subset. If the user sets `include-terminal: true` at preflight, show the terminal-state clusters explicitly so the user confirms intent before the subagent re-runs on them.
+- **Overwriting a prior session's Part B.** Resumption runs append a new `## Part B — Fix coordinator retrospective (session N, ...)` section. Never edit a prior session's heading or body.
 
 ## Bookkeeping after the run
 

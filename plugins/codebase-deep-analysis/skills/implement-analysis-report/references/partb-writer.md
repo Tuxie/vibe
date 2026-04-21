@@ -2,6 +2,8 @@
 
 After Step 4 (or Step 3 if no showstoppers), iar writes Part B of `analysis-analysis.md` — the fix coordinator's retrospective. Same "write while memory is live" principle as cda's Part A: never defer.
 
+**One Part B section per session.** Every invocation of iar that touches the report appends its own Part B section, identified by session number, date, and the exact iar revision that ran. Prior sessions are never overwritten. Over time a report's `analysis-analysis.md` accumulates `Part B (session 1)`, `Part B (session 2)`, … — a time-ordered log of fix-work across however many resumption runs were needed.
+
 ## Audience and contract
 
 The audience is **the author of the next version of iar** — a future Claude instance with no access to this report, this project, or this run's transcripts. Write directly to them.
@@ -17,21 +19,39 @@ Anonymization contract matches cda's Part A (see `codebase-deep-analysis/referen
 
 The orchestrator's working memory at Step 5 contains:
 
-- `PREFLIGHT_DECISIONS` — every answer the user gave at Step 0.
+- `PREFLIGHT_DECISIONS` — every answer the user gave at Step 0, including `session_number` and `include_terminal`.
 - `PLAN` — cluster order, gate set, per-cluster gate overrides.
 - `EXECUTION_LOG` — per-cluster: pre-SHA, outcome (closed/partial/deferred/showstopper/resolved-by-dep), wall time, gates run and their results, incidental files, subagent prompt + reply excerpts.
 - `SHOWSTOPPER_LIST` and `SHOWSTOPPER_ACTIONS` — every deferred cluster and the user's Step 3 answer.
 - `PARTB_START_SHA` and `PARTB_END_SHA` — first and last commit produced by the run (computed from the first cluster's pre-SHA and `git rev-parse HEAD` at Step 5).
-- iar's own VERSION (`0.1.0`).
+- `IAR_REVISION` — iar's own revision, captured at Step 0 via the same fallback chain cda uses (Step 6 of `codebase-deep-analysis/SKILL.md`):
+  1. `git -C <iar-skill-repo> rev-parse --short HEAD` → `sha:<short-sha>` when the iar skill repo has `.git/`.
+  2. Otherwise `cat <iar-skill-repo>/VERSION` → `version:<content>` when loaded from a plugin cache.
+  3. Last resort `sha256sum <iar-skill-repo>/SKILL.md | cut -c1-8` → `skill-md-hash:<hash>`.
+  Format: `<source>:<value>` (e.g., `version:0.2.0` or `sha:a1b2c3d`). This field is **mandatory** — Part B cannot be written without it, because future-iar's RED-phase needs to diff its critiqued behavior against the exact code that produced the session.
 - cda's report version (from the report's metadata).
+
+## Session heading
+
+Append a fresh Part B section to `analysis-analysis.md` with exact heading:
+
+```
+## Part B — Fix coordinator retrospective (session {N}, {YYYY-MM-DD}, iar {IAR_REVISION})
+```
+
+Example: `## Part B — Fix coordinator retrospective (session 2, 2026-04-22, iar version:0.2.0)`
+
+`{N}` is `PREFLIGHT_DECISIONS.session_number` (computed at preflight by scanning for prior Part B headings). `{YYYY-MM-DD}` is the date the run completed. `{IAR_REVISION}` is the mandatory `<source>:<value>` identifier described above.
+
+Never edit a prior session's heading or body. If the template-left Part B placeholder from cda Step 6 exists and is empty (no prior session has written), treat it as an unused template: replace it with this session's heading. If it already contains content, add this session as a new heading below.
 
 ## Template to fill
 
-Read `codebase-deep-analysis/references/analysis-analysis-template.md` and locate the Part B section. Fill it subsection by subsection. Do NOT skip subsections — a truthful "nothing notable here" is acceptable for a given subsection, but the heading must appear.
+Read `codebase-deep-analysis/references/analysis-analysis-template.md` and locate the Part B section. Fill it subsection by subsection under the session heading above. Do NOT skip subsections — a truthful "nothing notable here" is acceptable for a given subsection, but the heading must appear.
 
 Subsections to fill (names verbatim from the template):
 
-- Run identity (carry from Part A; add iar-specific rows: iar version, primary-pass wall time, second-pass wall time, gates run)
+- Run identity (carry from Part A; add iar-specific rows: **iar revision** (from `IAR_REVISION`), session number, cluster subset processed, `include_terminal` flag value, primary-pass wall time, second-pass wall time, gates run)
 - Did the TL;DR block tell the truth? (evidence from EXECUTION_LOG)
 - Cluster sizing honesty (compare Est. session size to actual wall time)
 - Was the Suggested session approach useful?
@@ -41,17 +61,25 @@ Subsections to fill (names verbatim from the template):
 - Findings the report missed entirely (clusters whose fix surfaced bugs the analyst didn't flag)
 - Findings the report had that didn't matter (e.g., an already-fixed flagged issue)
 - Tooling reality (how gates behaved; any pinned-version surprises)
+- Cross-session observations (when `session_number > 1`): what did this session learn that the earlier session(s) already covered or contradicted? Name the prior session explicitly by its heading. If this is session 1, omit this subsection.
 - Instructions to the v-next author (3–10 concrete items for the next iar version)
 
 ## Output location
 
-Append to `{report-dir}/analysis-analysis.md`. The cda Step 6 template left a Part B section with placeholders; iar fills those placeholders in place. If no Part B section exists (older report), append a new `## Part B — Fix coordinator retrospective` section at the end of the file with a leading note that Part A was missing.
+Append to `{report-dir}/analysis-analysis.md`. Behavior depends on the file's current state:
 
-Part B is NOT under `.scratch/`. It sits next to Part A so anyone reviewing the report finds both retrospectives together.
+- **Cda Step 6 placeholder present, no prior session.** Replace the empty Part B placeholder with this session's filled section (heading + body per the template).
+- **Prior session(s) exist.** Append this session as a new `## Part B — Fix coordinator retrospective (session N, ...)` section after the last existing Part B section, separated by a blank line. Never edit a prior session.
+- **No Part B section exists (older cda report without Step 6).** Append a new section at the end of the file with this session's heading, prefixed by a one-line note: *"Note: Part A missing from this report (older cda version). Runner context unknown."*
+
+Part B sections live next to Part A, not under `.scratch/`, so anyone reviewing the report finds every retrospective together.
 
 ## Common mistakes
 
 - **Postponing.** By the time the next invocation rolls around, the details are gone. Write Part B immediately after the last cluster hits a terminal state.
 - **Copying Part A's shape into Part B.** Part A is the runner retrospective (does synthesis over-filter?). Part B is the fix coordinator retrospective (did the cluster files tell the truth once we tried to implement them?). Different audiences, different questions.
+- **Overwriting a prior session's Part B.** Every iar run writes its own Part B section. Prior sessions are immutable. A resumption run that overwrites an earlier session's retrospective destroys RED-phase evidence the next iar version needs.
+- **Skipping the iar revision.** `IAR_REVISION` is mandatory in the session heading. Without it, the v-next author cannot diff the critiqued behavior against the exact code. Write `version:unknown` only if every fallback chain step genuinely failed, and explain in Run identity why.
+- **Mixing data across sessions.** A single Part B section reflects only that session's work. If session 2 discovers that session 1's closed cluster is actually broken (drift re-check via `include-terminal: true`), it's session 2's observation — not a retroactive edit of session 1's section.
 - **Leaking project identity.** Even a throwaway code snippet can de-anonymize. When in doubt, replace with `<generic-shape>`.
 - **Writing advice instead of evidence.** "Be more careful with autonomy flags" is useless. "Cluster 03 was marked autofix-ready but the third finding required deciding between two valid approaches; the subagent correctly returned shape B; v-next iar should prefer shape B more aggressively when the Fix: line uses hedging language" is useful.
