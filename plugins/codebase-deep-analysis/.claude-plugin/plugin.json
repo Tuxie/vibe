@@ -1,6 +1,6 @@
 {
   "name": "codebase-deep-analysis",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Parallel-analyst deep analysis of an entire codebase, right-sized to the project's scale tier (T1/T2/T3). Produces a multi-file report directory for cluster-by-cluster fix sessions.",
   "author": {
     "name": "Per Wigren",

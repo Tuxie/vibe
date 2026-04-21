@@ -61,6 +61,7 @@ The Structure Scout assigns the repo one tier, with evidence. Analysts filter ow
 | QUAL-6 | Non-idiomatic for the language / framework in use | T1 | Backend, Frontend |
 | QUAL-7 | Reimplementation of stdlib / in-use framework functionality | T1 | Backend, Frontend |
 | QUAL-8 | Workaround where a root-cause fix is available | T1 | Backend, Frontend |
+| QUAL-9 | Cross-boundary code duplication in same-language stacks — logic reimplemented across server/client/middleware/API-layer boundaries instead of extracted to a shared module. Common in full-stack JS/TS (Node, Bun, Deno), but applies to any stack where layers share a runtime: validation, formatting, constants, type definitions, business rules, data transformation. Each analyst checks the codebase map for same-language counterparts and spot-reads for equivalent logic in the other boundary's paths | T1 | Backend, Frontend |
 
 ## ERR — Error handling patterns
 
@@ -204,6 +205,9 @@ Covers how markup, styles, and framework code are written — orthogonal to `A11
 | FE-18 | Forms without bound `<label>`s, missing `name`/`autocomplete`/`inputmode`/`type`, or SPA submit handlers missing `preventDefault` so the page reloads | T1 | Frontend |
 | FE-19 | Component-scoped subscription leaks — `addEventListener`, `ResizeObserver`, `IntersectionObserver`, `setInterval` / `setTimeout`, media-query listeners — not cleaned up on unmount / teardown | T1 | Frontend |
 | FE-20 | Client bundle pulls server-only / Node-only APIs (tree-shake failed, or a `node:` import shipped to browser) causing either runtime errors or silently bloating the bundle with shims | T2 | Frontend |
+| FE-21 | Duplicated CSS property blocks — same set of properties/values repeated across multiple selectors instead of extracted to a shared class, mixin, or CSS custom-property group. Look for ≥3 selectors sharing ≥3 identical declarations | T1 | Frontend |
+| FE-22 | Missing component base classes — repeated UI elements (buttons, inputs, cards, menus, modals, badges) styled individually instead of sharing a common base class with variant modifiers. Changing one instance's style doesn't propagate to others | T1 | Frontend |
+| FE-23 | Inconsistent CSS class naming — no naming convention (BEM, utility-first, SMACSS, etc.) or convention exists but is violated; class names mix casing styles (`btn-primary` vs `submitButton` vs `card_header`) within the same project | T1 | Frontend |
 
 ## UX — Frontend UX (non-A11y)
 

@@ -6,6 +6,23 @@ Run this after every dispatched analyst has returned. Do not start writing the r
 
 Put each agent's `Findings` block into an indexed list. Tag every entry with the raising agent's name. Keep the original text verbatim — no rewrites yet.
 
+## 1b. Analyst output health check
+
+Before dedup, assess each analyst's output for signs of shallow analysis. Flag but do not auto-reject — the flags feed into §10 (targeted re-dispatch) and into the Run metadata so the user can see where coverage was weakest.
+
+| Signal | Threshold | Action |
+|--------|-----------|--------|
+| **Suspiciously thin output** | <3 findings for an analyst whose scope covers >20 files | Flag: `{AGENT_NAME}: {N} findings across {M}-file scope — possible under-analysis`. Candidate for §10 re-dispatch. |
+| **High clean-sweep ratio** | >60% of owned checklist items marked `clean` AND <5 findings | Flag: `{AGENT_NAME}: {N}% clean ratio with {M} findings — verify sampling depth`. Review the `clean` sampling statements for adequacy (see agent-prompt-template sampling requirement). |
+| **Zero source-drops on non-trivial scope** | `Dropped at source: 0` on a scope with >30 files | Flag: `{AGENT_NAME}: zero drops on {M}-file scope — either unusually clean code or analyst did not look deeply enough`. Not a defect by itself, but note it. |
+| **High source-drop ratio** | `Dropped at source` count exceeds reported findings count | Flag: `{AGENT_NAME}: dropped more findings ({N}) than reported ({M}) — review drop reasons for over-filtering`. Walk the drop breakdown; if >50% are "borderline", the analyst may have been too aggressive with the escape hatch. |
+| **Confidence clustering at Plausible** | >50% of findings marked `Plausible` when source is static-readable | Flag: `{AGENT_NAME}: {N}% Plausible — analyst may have avoided code-level verification`. |
+| **Autonomy clustering at needs-decision** | >50% of findings marked `needs-decision` | Flag: `{AGENT_NAME}: {N}% needs-decision — verify that alternatives genuinely exist for each`. |
+
+Record all flags under Run metadata as `Analyst health: {flags}`. If no flags fire, record `Analyst health: all outputs within expected ranges`.
+
+A single flag is a data point. Two or more flags on the same analyst is a strong signal of under-analysis and should trigger §10 re-dispatch on that analyst's scope.
+
 ## 2. Dedup by anchor
 
 Primary anchor: exact `file:line`. Secondary anchor: same `file` + same topic (e.g., "uses `console.log` instead of project logger").
@@ -46,7 +63,7 @@ Drop or downgrade a finding when **any** of these hold:
   - If the underlying problem is real but only the heavy fix is inappropriate: **keep the finding, rewrite its `Fix:` line** into something tier-appropriate (or drop the `Fix:` line and downgrade to `needs-decision` if no light fix exists). Note the rewrite under `Notes:` as `Tier-rewrite: original fix was {X}`.
   - If the problem itself only matters at a higher tier (e.g., SEO metadata on an internal hobby tool): **drop outright** and record it in the "Filtered out" tally below.
 - **Below profile threshold but emitted anyway.** An analyst emitted a finding for an item whose min-tier exceeds the project tier, and the repo shows no counter-evidence of intent. Drop, record in Filtered out.
-- **Stylistic restatement.** Finding reduces to "this doesn't match my preference" with no concrete failure mode and no linter/formatter backing.
+- **Stylistic restatement.** Finding reduces to "this doesn't match my preference" with no concrete failure mode and no linter/formatter backing. **Narrow definition:** a stylistic restatement is a pure formatting/taste preference (tabs vs spaces, brace placement, trailing commas). Structural problems like duplicated code, missing abstractions, inconsistent naming conventions, or architectural smells are **not** stylistic even if they involve "style" in the colloquial sense. When in doubt, keep the finding.
 - **Canonical-rule re-report.** Finding restates something `CLAUDE.md` / `AGENTS.md` / `README.md` already documents as an intentional decision.
 
 **Record filter activity explicitly.** Produce a `Filtered out` tally for the Run metadata:
@@ -159,7 +176,14 @@ Collect under `meta.md` in the report directory. If nothing repeats ≥3 times, 
 
 ## 10. Targeted re-dispatch (optional)
 
-If §7 surfaced fewer than 3 Executive Summary clusters despite the codebase being non-trivial, or §8 flagged a defect that matters (missing scope coverage, tier contradiction, applicability contradiction), dispatch a **single targeted Opus Explore agent** to re-analyze the specific paths in question. Merge its output back through §1–§8. Stop after one targeted pass — do not loop.
+If **any** of these hold, dispatch a **single targeted Opus Explore agent** to re-analyze the specific paths in question:
+
+- §7 surfaced fewer than 3 Executive Summary clusters despite the codebase being non-trivial.
+- §8 flagged a defect that matters (missing scope coverage, tier contradiction, applicability contradiction).
+- §1b flagged ≥2 health signals on the same analyst (strong signal of under-analysis).
+- §1b flagged a high source-drop ratio where >50% of drops were "borderline" (over-aggressive filtering).
+
+Merge the re-dispatch output back through §1–§8. Stop after one targeted pass — do not loop.
 
 ## 11. Re-synthesis for Depends-on resolution
 
