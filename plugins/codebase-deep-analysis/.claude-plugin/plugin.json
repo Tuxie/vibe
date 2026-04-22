@@ -1,6 +1,6 @@
 {
   "name": "codebase-deep-analysis",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "Parallel-analyst deep analysis of an entire codebase, right-sized to the project's scale tier (T1/T2/T3). Produces a single-file, compact-multi-file, or full-multi-file report sized to finding density for cluster-by-cluster fix sessions. Ships with a companion implement-analysis-report skill that lands the fixes in overnight-runnable passes.",
   "author": {
     "name": "Per Wigren",

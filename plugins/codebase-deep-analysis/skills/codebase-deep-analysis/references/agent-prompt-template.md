@@ -21,7 +21,7 @@ Do not skip this Read. The wrapper below assumes you have the ground rules loade
 
 {APPLICABILITY_FLAGS}
 
-Key your default N/A behaviors off these (see ground rules §3 and §4 for the specific cases that depend on flag values).
+For any flag with value `uncertain` or a sub-flag like `auth-gated` / `local-only`, apply the resolution tables in `analyst-ground-rules.md` §3 ("Applicability sub-flags" and "Uncertain-flag resolutions") verbatim. Do not re-interpret per-finding.
 
 ## Your scope
 

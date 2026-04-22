@@ -53,9 +53,11 @@ Either way, you never invoke commands outside this list, and you never install d
 
 Read `{CODEBASE_MAP_PATH}` once. Don't paste it into output.
 
-## Extra rule beyond analyst-ground-rules.md
+## Extra rules beyond analyst-ground-rules.md
 
-**Never re-run a flaky or slow command just to "confirm".** If one invocation of the coverage command fails or hangs, that is the data point — file it and move on. One run is the data.
+1. **Bash timeout floor.** Every Bash invocation you make to run `{DETECTED_COVERAGE_CMD}` or `{DETECTED_BENCH_CMD}` MUST pass `timeout: 900000` (15 minutes) explicitly. Real-world coverage and benchmark suites routinely run 5–12 minutes; the harness's default 2-minute Bash timeout will kill them mid-run. If the orchestrator passed a higher `{GATE_TIMEOUT_MS}` in the prompt, use that instead; otherwise 900000 is the floor.
+
+2. **Never re-run a flaky or slow command just to "confirm".** If one invocation of the coverage command fails or hangs, that is the data point — file it and move on. One run is the data.
 
 ## Static-only pass (always runs)
 

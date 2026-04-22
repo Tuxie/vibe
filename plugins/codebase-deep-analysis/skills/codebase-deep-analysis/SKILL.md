@@ -167,6 +167,8 @@ Map Step 0's `EXECUTION_MODE` to analyst dispatch:
 
 1. **Dispatch the Coverage & Profiling analyst** with the prompt in `references/coverage-profiling-prompt.md`. Substitutions: `{EXECUTION_CONSENT}`, `{DETECTED_COVERAGE_CMD}`, `{DETECTED_BENCH_CMD}` all come from the Step 0 preflight capture. The analyst is the single choke point for runtime invocation; the orchestrator does not run anything itself.
 
+   **Timeout requirement.** When the Coverage & Profiling analyst invokes Bash to run `{DETECTED_COVERAGE_CMD}` or `{DETECTED_BENCH_CMD}`, it must pass `timeout: 900000` (15 minutes) explicitly. Real-world coverage suites routinely run 5–12 minutes; the harness's default 2-minute Bash timeout will kill them mid-run. The orchestrator surfaces this requirement in the analyst's prompt (see `references/coverage-profiling-prompt.md`). If the user's preflight included a longer per-gate timeout override, use that; otherwise 900000 is the floor for this analyst.
+
 2. **Merge output into synthesis.** The analyst's findings and checklist lines flow through Step 4 the same way as every other analyst — the only novelty is the optional dynamic-pass Confidence upgrade from Plausible to Verified on covered items.
 
 If the user chose `Abort` at Step 0, this step is never reached. There is no separate "skip" mode in v3.1+ — `static-only` is the zero-execution path, and it still dispatches the analyst (which runs its full static pass). Record `Coverage & Profiling: static-only` or the relevant mode in Run metadata.

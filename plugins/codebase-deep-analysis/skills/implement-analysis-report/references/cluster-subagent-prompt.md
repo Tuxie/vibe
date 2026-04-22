@@ -14,6 +14,8 @@ Placeholders to fill:
 - `{DECISION_ANSWER}` — from `PREFLIGHT_DECISIONS.decisions[slug]` (empty string for autofix-ready clusters)
 - `{NEEDS_SPEC_TEXT}` — from `PREFLIGHT_DECISIONS.needs_spec_handling[slug]` when value starts with `spec:` (empty otherwise)
 - `{ATTRIBUTION_CLUSTER}` — from frontmatter `attribution:` (empty when absent)
+- `{MODEL_HINT}` — from frontmatter `model-hint:` (one of `haiku` / `sonnet` / `opus`; default `sonnet` when absent). Orchestrator uses this to select the subagent model at dispatch time.
+- `{TEST_DIR_CLASSIFICATION}` — the `PREFLIGHT_DECISIONS.test_dir_classification` map as a compact table (one row per test dir with `tsc_checked` and `notes`). Subagent consults this when its implementation adds a new test file.
 - `{PROJECT_WORKING_TREE}` — absolute path to project root
 
 ## Prompt
@@ -39,11 +41,20 @@ Produce the code changes named in the cluster's Findings section. When done, ret
 - Decision answer (if the cluster is needs-decision): {DECISION_ANSWER}
 - User-supplied spec (if the cluster is needs-spec and user answered now): {NEEDS_SPEC_TEXT}
 - Attribution cluster (if this is a fuzz-gap cluster catching another cluster's bug): {ATTRIBUTION_CLUSTER}
+- Test-directory classification (where new tests should go): {TEST_DIR_CLASSIFICATION}
 - Project working tree: {PROJECT_WORKING_TREE}
 
 If `DECISION_ANSWER` is non-empty, apply it verbatim — it is the user's preflight answer to the decision question in the cluster's Suggested session approach block.
 
 If `NEEDS_SPEC_TEXT` is non-empty, treat it as the spec for this cluster. Do not ask the user questions — the orchestrator is unattended.
+
+### Test-destination rule
+
+When your implementation adds a new test file, choose the destination directory using `TEST_DIR_CLASSIFICATION`:
+
+1. **Default to a `tsc_checked: true` directory** (e.g., `tests/unit/`). Tests that typecheck in CI catch regressions earlier and compose with the project's verification gates.
+2. **Use a `tsc_checked: false` directory** (e.g., `tests/api/`, `tests/e2e/`) only when the test *must* import framework internals or files that don't resolve under the narrow typecheck scope — the `notes` field of each entry names those constraints. A SvelteKit route test importing `+server.ts` belongs in `tests/api/`; a pure-function unit test belongs in `tests/unit/`.
+3. Your `Files touched (cluster scope)` output entry for a new test file must name the destination directory and why — e.g., `tests/unit/upload-store.test.ts (new file): unit scope, no +server.ts imports`.
 
 ## What you do
 

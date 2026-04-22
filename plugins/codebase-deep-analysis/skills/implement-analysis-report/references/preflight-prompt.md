@@ -13,7 +13,24 @@ Gather these before the user sees anything — the prompt itself shows summarize
    - **Active**: `Status` ∈ {`open`, `in-progress`}. Eligible for the default `all` subset.
    - **Terminal**: `Status` ∈ {`closed`, `partial`, `deferred`, `resolved-by-dep`}. Excluded from the default `all` subset; only processed if the user sets `include-terminal: true`.
 5. **Gate detection.** Read `package.json` scripts, top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml` `[tool.*.scripts]`. Build the baseline set per `gate-detection.md` rules.
-6. **Current branch and working-tree state.** `git rev-parse --abbrev-ref HEAD`, `git status --porcelain`. Needed to surface warnings in the prompt (uncommitted changes + non-current-branch strategy = warning; uncommitted changes + current-branch strategy = warning; clean tree = no warning).
+6. **Test-directory classification.** Read the project's typecheck config (`tsconfig.check.json`, `tsconfig.test.json`, `tsconfig.json`) and/or test runner config (`jest.config.*` `testPathIgnorePatterns`, `pytest.ini` `testpaths`, `vitest.config.*` `test.include`, etc.). For each test directory discovered in the project, classify:
+   - `tsc-checked: true` — directory is included in the typecheck config's `include` pattern
+   - `tsc-checked: false` — excluded, or no typecheck config exists at all
+   - Also note any framework-specific constraint (e.g., "tests/api/** imports +server.ts and pulls Locals.ctx types from SvelteKit routes into scope").
+
+   Build a `TEST_DIR_CLASSIFICATION` map:
+
+   ```
+   TEST_DIR_CLASSIFICATION = {
+     "tests/unit": {"tsc_checked": true, "notes": ""},
+     "tests/api":  {"tsc_checked": false, "notes": "imports +server.ts; Locals.ctx typing requires widened tsconfig"},
+     "tests/e2e":  {"tsc_checked": false, "notes": "Playwright runner; not typechecked"}
+   }
+   ```
+
+   This is read by Step 2's cluster subagent via `{TEST_DIR_CLASSIFICATION}` so subagents placing new tests pick the right destination without asking.
+
+7. **Current branch and working-tree state.** `git rev-parse --abbrev-ref HEAD`, `git status --porcelain`. Needed to surface warnings in the prompt (uncommitted changes + non-current-branch strategy = warning; uncommitted changes + current-branch strategy = warning; clean tree = no warning).
 
 ## Prompt structure
 
@@ -113,6 +130,11 @@ PREFLIGHT_DECISIONS = {
   "gate_timeouts": {
     "test": 600,    # seconds; default 600 (10 min) per gate
     "build": 1800,  # 30 min override
+    ...
+  },
+  "test_dir_classification": {
+    "tests/unit": {"tsc_checked": true, "notes": ""},
+    "tests/api":  {"tsc_checked": false, "notes": "..."},
     ...
   },
   "dry_run": false

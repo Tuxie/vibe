@@ -185,6 +185,8 @@ Depends-on:
 informally-unblocks:
 Pre-conditions:
 attribution:
+Commit-guidance:
+model-hint:
 ---
 
 # Cluster {NN} — {slug}
@@ -230,8 +232,15 @@ attribution:
 
 {2–3 sentences sketching how a brainstorming session might structure the work. This is the one place in the report where rendered output adds guidance beyond synthesis — keep it operational, not philosophical. If the cluster is straight mechanical fixes, say so and recommend subagent dispatch instead of brainstorming. For mechanical clusters with >3 findings, walk one concrete implementation sketch for the most non-trivial finding — see `synthesis.md` §6 "Mechanical-cluster sanity check".}
 
-{OPTIONAL: `## Commit-message guidance` — include only if this cluster has cluster-specific commit notes (expected `Incidental fixes`, a `Depends-on:` chain to traverse, a known-hairy scope-expansion risk). The canonical commit rules live in README's "Commit conventions" section; do not duplicate them here.}
 ```
+
+**No optional `## Commit-message guidance` H2.** The canonical commit rules live in README's "Commit conventions" section. Per-cluster commit notes (expected `Incidental fixes`, a `Depends-on:` chain to traverse, a known-hairy scope-expansion risk) go in the frontmatter `Commit-guidance:` field as a single line. Example:
+
+```
+Commit-guidance: expect an `Incidental fixes` section — the biome autofix sweep after this cluster's rewrites touches 4 unrelated files
+```
+
+An empty `Commit-guidance:` field is the norm; do not pad it for every cluster.
 
 ### Frontmatter field reference
 
@@ -244,6 +253,8 @@ attribution:
 | `informally-unblocks:` | optional | soft edge: this cluster's work becomes easier after another lands, but is not required. Format: `NN-slug` (one per line). Rendered in README index as `⇢ NN`. Not an ordering constraint — fix order is still driven by severity and `Depends-on:`. |
 | `Pre-conditions:` | optional | prerequisites this cluster's fix needs in place to land cleanly. Populated automatically by synthesis §5 "Pre-conditions inference" when the cluster flips a gate (coverage threshold, lint rule, type check) and in-scope files currently fail that gate. Format: bulleted list, each `- <file-or-cluster-ref>: <required state>`. |
 | `attribution:` | optional | fuzz-gap convention. When a fuzz-gap cluster's recommended fix catches a bug whose scope belongs to a different cluster, the bug lands in the fuzz cluster's commit but `attribution:` names the originating cluster: `attribution: 04-input-validation (caught-by: 15-fuzz-gaps)`. Do not re-file the bug under the origin cluster. |
+| `Commit-guidance:` | optional | single-line prose with cluster-specific commit notes — expected `Incidental fixes` scope, a `Depends-on:` chain to traverse, a known scope-expansion risk. Leave empty when there are no cluster-specific notes; the canonical commit rules live in the README's "Commit conventions" section. Do not restate canonical rules here. |
+| `model-hint:` | optional | `haiku` \| `sonnet` \| `opus` — synthesis populates per cluster (see `synthesis.md` §6). Default `sonnet`. `iar` reads this when dispatching per-cluster subagents. Absent = sonnet fallback. |
 
 ### Cluster `Status` lifecycle
 

@@ -38,6 +38,24 @@ Anchor severities against these examples rather than deriving from abstract prin
 
 Severities are relative to the project tier. "Missing retry on local CLI" is Low; "missing retry on payment service" is High. When in doubt pick one step lower than instinct — synthesis will escalate if another analyst saw it harder.
 
+### Local-first calibration
+
+If the Scout's applicability flags include `web-facing-ui: present, local-only` (desktop app, localhost-only dev server, LAN-only tool), apply these anchors **instead of** the generic public-surface ones for any network-boundary finding. Local-first tools have a different attacker model: the attacker is either on the same host (very limited attack value) or on the same LAN (intentional for some use cases, accidental for others).
+
+| Shape | T1 local-first | T2 local-first | T3 local-first |
+|-------|----|----|----|
+| HTTP API bound to `0.0.0.0` by default (unintentional LAN exposure) | Medium | High | High |
+| HTTP API bound to `127.0.0.1` by default, `--host` flag available for explicit opt-in | Low | Low | Medium |
+| Endpoint accepts user argv → subprocess on localhost | Medium | High | Critical |
+| Path traversal in user-uploaded filename (local-only server) | Medium | High | High |
+| Missing authn on endpoint reachable only via loopback | Low | Low | Medium |
+| Missing authn on endpoint reachable via LAN binding | Medium | High | High |
+| CORS misconfigured (e.g., `*` origin) on local-only API | Low | Medium | Medium |
+
+Reasoning: a local-first tool that unintentionally binds `0.0.0.0` elevates attack surface from "code running as the user on their own box" (near-zero marginal risk) to "anyone on the LAN can hit the API" (real risk on shared networks — coffee shops, offices, dorms). But an intentional loopback binding with opt-in `--host` is a user-controlled choice, not a vulnerability.
+
+When both tables apply (mixed surface: local-first admin UI + public telemetry endpoint), use the generic anchors for the public surface and local-first anchors for the local one; note the split in `Notes:`.
+
 ---
 
 ## Ground rules (non-negotiable)
@@ -48,7 +66,26 @@ Severities are relative to the project tier. "Missing retry on local CLI" is Low
 
 3. **Scope:** `{SCOPE_GLOBS}` from the wrapper. Cross-scope reads are allowed only when a specific finding demands it; include a one-line justification in the finding's `Notes:` field. Cross-scope *cites* (your finding references a file outside your scope) are valid but will be moved to the correct analyst's dump during synthesis — not a defect.
 
-4. **Applicability sub-flags.** The wrapper passes `{APPLICABILITY_FLAGS}` from the Scout. Key off sub-flags where present. Specifically: if `web-facing-ui: present, auth-gated`, then SEO-class checklist items default to `[-] N/A — auth-gated UI, no crawlable surface` without re-deriving intent per run. Override only if a public marketing route exists alongside the auth-gated app.
+4. **Applicability sub-flags and uncertain resolutions.** The wrapper passes `{APPLICABILITY_FLAGS}` from the Scout. Apply both tables below mechanically — do not re-interpret per-finding, do not ask the orchestrator to clarify.
+
+   **Sub-flag resolutions:**
+   - `web-facing-ui: present, auth-gated` → SEO-class checklist items default to `[-] N/A — auth-gated UI, no crawlable surface`. Override only if a public marketing route exists alongside the auth-gated app.
+   - `web-facing-ui: present, local-only` → apply the "Local-first calibration" severity anchors (later in this file) instead of the generic public-surface anchors for network-boundary findings. SEO-class items default to `[-] N/A — local-only tool, not indexed`.
+
+   **Uncertain-flag resolutions:**
+
+   | Flag = `uncertain` | Treat as `present` for | Treat as `absent` for |
+   |---|---|---|
+   | `web-facing-ui` | Security checklist items, A11Y-1..A11Y-5 | SEO-1..SEO-3 |
+   | `database` | Security checklist items (data handling paths) | DB-1..DB-5, MIG-1..MIG-5 |
+   | `i18n-intent` | — | I18N-1..I18N-3 (N/A with reason "no i18n intent") |
+   | `security-surface` | all Security checklist items | — (security defaults to present on uncertainty) |
+   | `container` | — | CONT-1..CONT-4 |
+   | `ci` | — | CI-1..CI-4 |
+   | `iac` | — | IAC-1..IAC-3 |
+   | `monorepo` | — | MONO-1..MONO-2 |
+
+   If your analyst's scope depends on a flag with `uncertain` and the table has no row for it, treat as `present` for safety-sensitive checks (`security-surface`, `tests`) and `absent` for optional-feature checks (`i18n-intent`, `monorepo`); note the assumption in `Notes:` on any affected finding.
 
 5. **Forbidden reads.** Do not open any of: `.env*`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, anything under `secrets/`, `credentials/`, `.ssh/`. If such a file's existence is itself a finding, describe the path only — never its contents. Do not quote any token that looks like a credential, API key, hash, or private key.
 
@@ -93,6 +130,24 @@ See "Severity anchors by tier" above for calibrated examples.
 
 **Tier as a confidence boost on autonomy, not only a filter.** The tier filter is primarily subtractive (drop what doesn't fit a smaller project). It is also additive: for T2+ projects where the repo shows explicit intent to do the thing the fix does (matching existing patterns, continuing a migration already in flight, extending an established convention), prefer `autofix-ready` over `needs-decision` when the mechanics are unambiguous. Do not use this to upgrade a genuinely ambiguous fix — ≥2 reasonable options still means `needs-decision`.
 
+### Enshrined-test check for autofix-ready
+
+Before marking a finding `Autonomy: autofix-ready`, grep the project's test directories for references to the code the fix replaces. If any test asserts the pre-fix behavior, the fix must expand scope to also update or delete those tests.
+
+The check: find test literals (not comments) that the fix would make impossible. Examples of the pattern:
+
+- Fix changes a regex so `'cap-a'` is no longer a valid capture ID → search `tests/**` for the literal `'cap-a'`; any match is an enshrined test.
+- Fix rewrites an error message from `"not found"` to `"capture does not exist"` → search tests for the old message literal.
+- Fix changes an HTTP status from `200` to `404` on a specific error path → search tests calling that endpoint for `.status(200)` / `statusCode: 200` assertions.
+
+Action:
+
+- **Zero enshrined tests found:** `autofix-ready` stands.
+- **1–2 enshrined tests found, same file:** keep `autofix-ready` BUT list the enshrined-test file paths in `Notes:` so the fix subagent expands scope by design, not surprise. Example: `Notes: expanded scope — fix makes tests/api/captures-paste-route.test.ts:43 ('cap-a') and tests/api/admin-jobs-id-route.test.ts:71 ('abc-123') enshrine an impossible input; both must be updated to use real UUIDs.`
+- **3+ enshrined tests OR tests span multiple files/modules:** downgrade Autonomy to `needs-decision` with `Notes: fix breaks {N} enshrined tests across {M} files; subagent must decide whether to update the tests in place, delete them, or replace with an equivalent assertion against the new behavior`.
+
+Bare test-function-name matches (not `// comment` matches) count. A test literal that the fix will make impossible is the signal. Do not count implementation-file literal matches — those are the target of the fix, not enshrined tests.
+
 ### Invocation verification for autofix-ready
 
 If your `Fix:` line recommends a tool invocation (`bunx X`, `pnpm X`, `cargo X --flag`, `npx Y`, `pipx run Z`, etc.), you must verify the invocation works at the project's pinned toolchain before marking the finding `autofix-ready`. Pinned versions live in:
@@ -108,6 +163,22 @@ If your `Fix:` line recommends a tool invocation (`bunx X`, `pnpm X`, `cargo X -
 - `Dockerfile` base image tag
 
 If the pin predates the invocation's availability (e.g., `bunx playwright` on Bun 1.3.x — Bun 1.3's `bunx` can't resolve `@playwright/test`), or if the pin is not verifiable from the manifest, Confidence downgrades to `Plausible` and the finding cannot be `autofix-ready`. Annotate: `Notes: unverified at pinned version {X}`.
+
+### Gate-widening findings must ballpark the surfaced-error count
+
+If a finding's `Fix:` is "widen this gate's scope" — extending a `tsconfig.check.json` `include` pattern, adding a directory to a linter config, turning on a previously-off eslint/biome/ruff rule, raising a coverage threshold, adding a new required CI job — run the widened check mentally (or via `rg` / dry-run where allowed) and count the resulting errors **before** marking the finding `autofix-ready`.
+
+Include in the finding body under a `Surfaced-errors:` line:
+
+- `Surfaced-errors: N — first 5: {path:line, path:line, path:line, path:line, path:line}` when N ≤ 20.
+- `Surfaced-errors: ~N — sample: {5 paths}` when N > 20; approximate is fine, order of magnitude matters.
+- `Surfaced-errors: 0` when the widened check genuinely passes as-is (rare; common case is >0).
+
+If running the widened check is outside the analyst's read-only scope (the check is dynamic, `bun tsc` is forbidden, etc.), mark Confidence: `Plausible` with `Notes: widened-check not run; error count unknown at report time — fix coordinator must ballpark before proceeding`.
+
+**Effort reclassification:** if `Surfaced-errors` > 20, `Effort` must be `Large` regardless of how trivial the gate-widening one-liner itself is. The session size is bounded by the cleanup cost, not the config edit.
+
+**Autonomy reclassification:** if `Surfaced-errors` > 20, `Autonomy` cannot be `autofix-ready`. The cleanup decisions (fix in place vs. suppress vs. defer) are per-error, not mechanical.
 
 ### Fix line is a contract
 

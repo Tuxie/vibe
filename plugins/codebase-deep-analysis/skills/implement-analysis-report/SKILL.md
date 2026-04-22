@@ -22,8 +22,9 @@ Consume a `codebase-deep-analysis` report directory and land the fixes cluster-b
 | `references/cluster-subagent-prompt.md` | Wrapper around `superpowers:subagent-driven-development` per cluster |
 | `references/showstopper-prompt.md` | Step 3 consolidated `AskUserQuestion` template |
 | `references/gate-detection.md` | Auto-detect verification gates from common build-system manifests |
+| `references/cross-cluster-themes.md` | Step 2 theme detector — catches frictions that hit ≥2 clusters (mock pollution, tsc cascade, enshrined tests, etc.) |
 | `references/partb-writer.md` | How to fill Part B of `analysis-analysis.md` at run completion |
-| `VERSION` | Skill version string (`0.1.0`) for retrospective identity |
+| `VERSION` | Skill version string for retrospective identity |
 
 ## Compatibility
 
@@ -98,6 +99,10 @@ Sequential per cluster. For each cluster in plan order:
    - Continue with the next cluster.
 
 If a cluster has `attribution: NN-slug (caught-by: ...)` in frontmatter, the commit message body names the attribution cluster but Status updates apply to THIS cluster only.
+
+**Cross-cluster theme detection.** After each cluster terminates (close / partial / defer), inspect the cluster's outcome against the recognized theme shapes in `references/cross-cluster-themes.md`. Append matches to `THEMES_LOG` keyed by shape tag. Before Step 3, filter `THEMES_LOG` for shapes that hit ≥2 clusters and write each to `{report-dir}/.scratch/implement-themes.md`. Part B consumes this file in Step 5.
+
+**Per-cluster model selection.** Before dispatching the subagent, read the cluster frontmatter's `model-hint:` field if present (`haiku` / `sonnet` / `opus`). Pass it to the subagent dispatch's model selection. Default to `sonnet` when the hint is missing — this is backward-compatible with cda reports generated before v3.3.
 
 ## Step 3 — Showstopper interview
 

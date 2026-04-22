@@ -133,9 +133,36 @@ Depends-on: {none | NN-slug[, MM-slug]}  — hard edge: fix requires another clu
 informally-unblocks: {none | NN-slug[, MM-slug]}  — soft edge: this cluster lands easier after another; not an ordering constraint
 Pre-conditions: {none | bulleted list of "<file-or-cluster-ref>: <required state>"}
 attribution: {none | NN-slug (caught-by: MM-slug)}  — fuzz-gap attribution convention
+Commit-guidance: {empty | single-line cluster-specific commit note}  — see report-template.md field reference
+model-hint: {haiku | sonnet | opus}  — see "Model-hint selection" below
 ```
 
-A finding belongs to **exactly one cluster**. If it genuinely spans two, pick the cluster where its fix is anchored; cross-reference in `Notes:`.
+### Model-hint selection
+
+Populate `model-hint:` on every cluster. Use these rules; the field is not user-facing but drives `implement-analysis-report`'s per-cluster subagent dispatch.
+
+- **Default:** `sonnet`.
+- **Downgrade to `haiku` when ALL hold:** `Autonomy: autofix-ready`, highest-severity-in-cluster is Low, no finding involves type narrowing (`any → unknown`, generic constraint changes, union refinement), no finding involves async/lifecycle changes (signal handling, cancellation, race fixes), no finding touches cross-module refactoring (shared-abstraction extraction, module split/merge).
+- **Upgrade to `opus` when ALL hold:** `Autonomy: needs-spec`, highest-severity-in-cluster is High or Critical, cluster spans >5 distinct files, AND the fix requires maintainer interview + spec design synthesized into code. `opus` is the expensive option — reserve for clusters where sonnet would likely return shape B ("cannot implement without further decision").
+
+When in doubt: default to `sonnet`. The hint is a cost optimization, not a correctness constraint; `iar` may override based on its own runtime signal (e.g., a sonnet cluster that returns shape B twice might escalate to opus on its third attempt — out of scope for this version).
+
+A finding belongs to **exactly one cluster**. If it genuinely spans two, follow the cross-cluster attribution rule below.
+
+### Cross-cluster finding attribution rule
+
+When a finding legitimately spans two or more clusters (e.g., a security finding whose fix touches both the auth middleware and the path-traversal sanitizer):
+
+1. **Place it under the cluster whose fix resolves the root cause.** This is the cluster whose session-scope work would make the finding disappear even if no other cluster shipped. Anchor on *cause*, not *surface* — the path-traversal symptom might appear in the file-upload cluster's files, but if the root cause is missing auth on the upload endpoint, the finding belongs in the auth cluster.
+2. **In the owning cluster's `Findings:` block, add a `Touches:` sub-bullet** naming every other cluster's scope the finding intersects: `Touches: cluster 03-path-traversal`.
+3. **In the touched clusters' bodies, emit a `See cluster NN-slug finding '{title}'` line** under a `## Cross-references` section (create the section if absent). No body duplication.
+4. The attribution cluster is the single source of truth. Updates to the finding (severity, fix, etc.) happen only in the attribution cluster.
+
+### Sanity check on thematic-mixed large clusters
+
+For clusters with >7 findings that are **not** `Autonomy: autofix-ready` (i.e., the fix shape is mixed or includes decisions), the cluster's `Suggested session approach` block must demonstrate **single session focus** — name the one thread that ties all findings together. If synthesis cannot name a single thread in 2–3 sentences, split the cluster. "Related but heterogeneous" is not session focus; subsystems with mixed decision axes compound mental-model load across the session.
+
+The >7 threshold is intentionally looser than the mechanical-autofix >3 threshold (§6 step 6) — thematic clusters have natural cohesion where mechanical ones do not.
 
 Clusters are the primary unit of the final report. The Executive Summary lists cluster slugs, not individual findings, so the user can navigate directly to the session they want to run.
 
@@ -188,15 +215,34 @@ Defect-demoted lines appear verbatim; do not silently fix them. The user needs t
 
 ## 9. Draft META-1 entries
 
-Walk the merged (and right-sized) findings. For any finding shape that repeats ≥3 times (across files or scopes), draft a one-line CLAUDE.md rule that would have prevented it.
+Walk the merged (and right-sized) findings. For any finding shape that repeats ≥3 times (across files or scopes), draft a META-1 entry. Two cases — pick the one that matches:
 
-Each META-1 entry:
+### Case 1 — New pattern without an existing rule
+
+Grep the project's instruction-file docs (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, top-level `README.md`, `docs/*.md`) for the rule's subject. If no match, you're in Case 1. Draft a one-line CLAUDE.md rule that would have prevented the finding:
 
 ```
 - **{Draft rule}** — prevents: {comma-separated finding IDs or anchors}. Rationale: {one sentence}.
 ```
 
-Collect under `meta.md` in the report directory. If nothing repeats ≥3 times, the file contains a single line: `_No recurring finding shapes surfaced this run._` — do not manufacture rules.
+### Case 2 — Existing rule violated N times
+
+If the project's instruction-file docs already name the rule being violated (e.g., CLAUDE.md says "always sanitize filenames before passing to the filesystem" and the findings show 4 places this wasn't done), the meta-issue is **enforcement**, not rule design. A new rule duplicating the existing text is pure noise. Instead, draft an enforcement mechanism:
+
+```
+- **Enforce {existing rule name}:** add {tool/mechanism} check — prevents: {IDs}. Rationale: rule already exists in {doc path}, N violations this run indicate enforcement gap.
+```
+
+Choose the mechanism:
+
+- If a lint rule fits (ESLint/biome/ruff/pylint/rubocop/clippy), name it: *"add a biome rule `no-unsafe-paths` that forbids raw string concatenation into `fs.open`"*.
+- If a pre-commit or pre-push hook fits (simple grep / regex gate), name it: *"add a pre-commit grep forbidding `ffprobe` invocations outside `lib/probe/`"*.
+- If a CI job fits (type/lint/test check that the project already runs), extend it: *"extend `tsconfig.check.json` include to cover `tests/api/**` so the Locals.ctx type gap is caught in CI"*.
+- If no mechanical catch is available, draft a **hard-stop entry** for the project's pre-dispatch checklist: *"before committing a fix touching upload endpoints, re-read CLAUDE.md Rule 3 — rule violated 4 times this run, no automated catch"*.
+
+### Output
+
+Collect all entries under `meta.md` in the report directory. Mix Case 1 and Case 2 entries freely; each entry's format makes its kind obvious. If nothing repeats ≥3 times, the file contains a single line: `_No recurring finding shapes surfaced this run._` — do not manufacture rules.
 
 ## 10. Targeted re-dispatch (optional)
 
@@ -236,7 +282,27 @@ Rules:
 - **Document the expansion.** In the commit message, add a section named **`Incidental fixes`** listing each out-of-scope change with its file path and a one-line reason. This keeps the review trail honest and prevents "why did you touch this?" review churn.
 - **Scope expansion does not promote `needs-spec` / `needs-decision` findings.** If expansion would require a spec or design call, stop and surface it.
 
-Analysts never expand scope — this section is guidance for later fix sessions that consume the cluster file. Synthesis does not filter on it.
+### Shape changes during fix work
+
+Some fix sessions produce changes the cluster did not anticipate but that are distinct from scope-expansion-for-gates:
+
+- **Drafted work that must be deleted.** A subagent drafts tests following TDD, then discovers the test approach won't work because of test-runner pollution (Bun's process-global `mock.module`), fixture-sharing limits, or platform-specific blockers. The tests must be deleted, not just left failing.
+- **Planned helpers that collapse.** A cluster's approach assumed a helper function was needed; the implementation is simpler and the helper never materializes.
+- **Type annotations or guards that become unnecessary** after a refactor changes the surface.
+
+These are **shape changes**, not gate-unblocks. Document them in the commit message under a `**Shape changes**` section (parallel to `Incidental fixes`, same placement in the message body). One line per change: what was planned, what actually landed, why.
+
+- If a shape change reverses a cluster's named goal (cluster said "add 5 tests", fix landed 2 and deleted 3 as unimplementable), flip `Status: partial` and name the blocker in `Resolved-in: <SHA> (partial — <blocker>)`.
+- If a shape change is additive-only (cluster said "extract helper", fix landed without the helper but with the desired behavior), keep `Status: closed` — the cluster's goal shipped, the shape just differed.
+- Shape changes do NOT require a new finding. They are outcomes of a cluster already in the report.
+
+### Enshrined-test check before fix work
+
+Before executing a fix for any `Autonomy: autofix-ready` cluster, the fix agent (or the cluster file's consumer) must check for tests that enshrine the pre-fix behavior. The check: grep the project's test files for hard-coded values that the fix would make impossible (e.g., a test asserting `'cap-a'` is accepted when the fix makes only UUIDs valid). Any enshrined test becomes an incidental-fix obligation.
+
+Analysts are expected to flag enshrined tests at report time where they can (see `analyst-ground-rules.md` Fix-line rules). When the analyst missed one, fix-time catch keeps the cluster closable — delete or rewrite the enshrined test under `Incidental fixes` rather than leaving a red gate.
+
+Analysts never expand scope themselves — this section is guidance for later fix sessions that consume the cluster file. Synthesis does not filter on it.
 
 ## 13. Freeze
 
