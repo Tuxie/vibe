@@ -6,7 +6,12 @@ After Step 4 (or Step 3 if no showstoppers), iar writes Part B of `analysis-anal
 
 ## Audience and contract
 
-The audience is **the author of the next version of iar** — a future Claude instance with no access to this report, this project, or this run's transcripts. Write directly to them.
+Part B has **two v-next audiences** and the retrospective must serve both:
+
+1. **The author of the next codebase-deep-analysis version (cda v-next).** Needs evidence about whether the *report* was faithful — did clusters match implementation reality, were findings correctly attributed, did the synthesis right-sizing filter draw the right line. Read cda's `analysis-analysis-template.md` "Writing rules" for the anonymization contract.
+2. **The author of the next implement-analysis-report version (iar v-next).** Needs evidence about whether the *fix-coordinator* was adequate — did the preflight capture the right decisions, did gate detection cover the project's toolchain, did showstopper handling resolve cleanly, did the subagent wrapper output contract work as specified.
+
+Both audiences are future Claude instances with no access to this report, this project, or this run's transcripts. Write directly to them. A single Part B section serves both — separate suggestions are emitted in the dedicated `cda v-next` and `iar v-next` subsections near the end.
 
 Anonymization contract matches cda's Part A (see `codebase-deep-analysis/references/analysis-analysis-template.md` "Writing rules"):
 
@@ -62,7 +67,11 @@ Subsections to fill (names verbatim from the template):
 - Findings the report had that didn't matter (e.g., an already-fixed flagged issue)
 - Tooling reality (how gates behaved; any pinned-version surprises)
 - Cross-session observations (when `session_number > 1`): what did this session learn that the earlier session(s) already covered or contradicted? Name the prior session explicitly by its heading. If this is session 1, omit this subsection.
-- Instructions to the v-next author (3–10 concrete items for the next iar version)
+- **Suggestions for codebase-deep-analysis v-next** (0–10 concrete items). Each item starts with `**cda v-next:**` and names a change the *report-producer* skill should make — e.g., a missing checklist category surfaced by the fix work, a cluster-frontmatter field that was ambiguous, a synthesis rule that over- or under-filtered. `0 items` is acceptable when this session's evidence is entirely about iar, not cda.
+- **Suggestions for implement-analysis-report v-next** (3–10 concrete items, MANDATORY). Each item starts with `**iar v-next:**` and names a change the *fix-coordinator* skill should make. This subsection is mandatory — every run surfaces at least three frictions (if only papercut-level). If you cannot find three, re-read the EXECUTION_LOG; something is always suboptimal. Examples of iar v-next items:
+  - **iar v-next:** preflight did not detect `bun test --coverage` because the package.json script was named `coverage:run` not `test:coverage`; `references/gate-detection.md` "typecheck" section's key-matching logic needs a corresponding broader pattern.
+  - **iar v-next:** cluster 03 was `Autonomy: autofix-ready` but the subagent hit shape B on finding 2 because the `Fix:` line referenced a variable that had been renamed since the report was generated; iar could pre-flight-check for drift by running `rg` on the `Fix:` targets before dispatching.
+  - **iar v-next:** `PREFLIGHT_DECISIONS.session_number` scan was slow (~3s) on a report with 14 prior Part B sections because the regex walked every line; cache the max session-number in `.scratch/implement-run.log` header.
 
 ## Output location
 
@@ -83,3 +92,5 @@ Part B sections live next to Part A, not under `.scratch/`, so anyone reviewing 
 - **Mixing data across sessions.** A single Part B section reflects only that session's work. If session 2 discovers that session 1's closed cluster is actually broken (drift re-check via `include-terminal: true`), it's session 2's observation — not a retroactive edit of session 1's section.
 - **Leaking project identity.** Even a throwaway code snippet can de-anonymize. When in doubt, replace with `<generic-shape>`.
 - **Writing advice instead of evidence.** "Be more careful with autonomy flags" is useless. "Cluster 03 was marked autofix-ready but the third finding required deciding between two valid approaches; the subagent correctly returned shape B; v-next iar should prefer shape B more aggressively when the Fix: line uses hedging language" is useful.
+- **Skipping the iar v-next subsection because "nothing went wrong".** Every run surfaces frictions, even on perfect paths. If you genuinely cannot find three iar-specific items after a clean run, the bar is "what would have gone subtly better, or what would shorten next time's runtime, or what rough edge is one papercut away from being a problem". Mandatory means mandatory.
+- **Mixing audiences in one bullet.** Keep `cda v-next:` and `iar v-next:` bullets strictly separated. A finding about a cluster's Fix: line drift is cda's problem (reports drift with code); a finding about iar not detecting the drift before dispatch is iar's problem. Often the same underlying issue has one bullet for each audience — that's fine, write both.

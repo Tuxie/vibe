@@ -215,12 +215,22 @@ Mirror of the previous section: which findings, once looked at with fix-work con
 - Did any cluster-file frontmatter fail to parse? (If yes, name the file and the fix.)
 - Any other infra friction the skill's scripting/templating introduced.
 
-### Instructions to the v-next author
+### Suggestions for codebase-deep-analysis v-next
 
-Close Part B with a short list — 3 to 10 bullets — each starting `**V-next:**` followed by a concrete change. Prefer changes grounded in the gap-between-report-and-reality findings above; those are the highest-signal. Example:
+Changes the report-producer skill should make, grounded in the gap-between-report-and-reality findings above. Each bullet starts `**cda v-next:**`. Range 0–10 items; `0` is acceptable when this session's evidence is entirely about iar. Examples:
 
-- **V-next:** Add an `API-5` checklist item for "Handler returns a 200 with error payload in the body" — the fix work on this run surfaced 4 instances, none of which the existing API-1..API-4 captured.
-- **V-next:** `references/report-template.md` cluster template's `## Commit-message guidance` currently says "name the cluster slug and date on the first line"; on this run that format collided with our Conventional Commits setup. Either document a fallback for CC repos or loosen the requirement.
+- **cda v-next:** Add an `API-5` checklist item for "Handler returns a 200 with error payload in the body" — the fix work on this run surfaced 4 instances, none of which the existing API-1..API-4 captured.
+- **cda v-next:** `references/report-template.md` cluster template's `## Commit-message guidance` currently says "name the cluster slug and date on the first line"; on this run that format collided with our Conventional Commits setup. Either document a fallback for CC repos or loosen the requirement.
+
+### Suggestions for implement-analysis-report v-next
+
+Changes the fix-coordinator skill should make, grounded in the run's EXECUTION_LOG and showstopper list. Each bullet starts `**iar v-next:**`. Range 3–10 items; this subsection is **mandatory** (every run surfaces at least three frictions, even on clean paths). Examples:
+
+- **iar v-next:** preflight's gate detection did not catch `bun test --coverage` because the package.json script name matched `coverage:run` — gate-detection.md's "typecheck" key-matching pattern needs a corresponding broader one for coverage-style test invocations.
+- **iar v-next:** cluster 03 was `Autonomy: autofix-ready` but the subagent hit shape B because the `Fix:` line referenced a symbol renamed since the report was generated; iar could pre-flight `rg` the `Fix:` targets before dispatch and promote drift to the showstopper list without wasting a subagent dispatch.
+- **iar v-next:** the single consolidated `AskUserQuestion` at Step 0 was truncated by the harness at ~30 clusters' worth of decision questions; iar needs a paging strategy for reports with very large decision sets.
+
+When writing Part B, iar's `references/partb-writer.md` is authoritative for subsection shape — treat this template as scaffolding that iar may refine.
 
 ---
 
