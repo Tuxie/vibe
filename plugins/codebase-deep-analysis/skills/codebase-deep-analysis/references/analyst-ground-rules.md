@@ -89,7 +89,25 @@ When both tables apply (mixed surface: local-first admin UI + public telemetry e
 
 5. **Forbidden reads.** Do not open any of: `.env*`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, anything under `secrets/`, `credentials/`, `.ssh/`. If such a file's existence is itself a finding, describe the path only — never its contents. Do not quote any token that looks like a credential, API key, hash, or private key.
 
-6. **Forbidden commands.** No `install`, `add`, `update`, `build`, `migrate`, `exec`, `test`, `run`, no package-manager subcommands that download or modify, and no execution of project code or scripts. Allowed: `git log`, `git blame`, `git ls-files`, `git status`, `rg`, `ls`, `wc`, and the Read tool. (The Coverage & Profiling analyst has an explicit exception in Step 3.5; no other analyst does.)
+6. **Forbidden commands.** No `install`, `add`, `update`, `build`, `migrate`, `exec`, `test`, `run`, no package-manager subcommands that modify the project's state (lockfile, node_modules, virtualenvs, etc.), and no execution of project code or scripts. Allowed: `git log`, `git blame`, `git ls-files`, `git status`, `rg`, `ls`, `wc`, and the Read tool. (The Coverage & Profiling analyst has an explicit exception in Step 3.5; no other analyst does.)
+
+   **Dependency-freshness allowlist (read-only registry queries).** For DEP-1, DEP-6, TOOL-3 and related dependency-version checks, analysts MAY run the native "what's newer than what I have" command for the project's package manager. These commands read the registry but do not modify the lockfile, `node_modules`, or any project file:
+
+   - `bun outdated` (Bun)
+   - `npm outdated` (npm)
+   - `pnpm outdated` (pnpm)
+   - `yarn outdated` (Yarn classic; Yarn Berry uses `yarn upgrade-interactive --latest` dry-run)
+   - `cargo outdated` (Rust; 3rd-party subcommand — only if already installed; otherwise skip)
+   - `pip list --outdated` (pip)
+   - `uv pip list --outdated` (uv)
+   - `gem outdated` (Ruby)
+   - `go list -m -u all` (Go)
+   - `mix hex.outdated` (Elixir)
+   - `composer outdated` (PHP)
+
+   If the native command is not available for the project's ecosystem, or the analyst cannot determine the correct invocation from a single probe (`bun --version` etc.), web-search for the package's latest stable version instead (see "Dependency freshness checks" below). Commands that write state (`install`, `add`, `update`, `upgrade`) remain forbidden.
+
+   (The Coverage & Profiling analyst has a separate, broader exception in Step 3.5; the allowlist above is for all analysts, not just Coverage.)
 
 7. **No runtime observation.** Do not run tests or builds to "observe behavior." If dynamic behavior matters, describe what static analysis cannot answer and mark the finding Confidence: Speculative.
 
@@ -147,6 +165,28 @@ Action:
 - **3+ enshrined tests OR tests span multiple files/modules:** downgrade Autonomy to `needs-decision` with `Notes: fix breaks {N} enshrined tests across {M} files; subagent must decide whether to update the tests in place, delete them, or replace with an equivalent assertion against the new behavior`.
 
 Bare test-function-name matches (not `// comment` matches) count. A test literal that the fix will make impossible is the signal. Do not count implementation-file literal matches — those are the target of the fix, not enshrined tests.
+
+### Dependency freshness checks — no training-data guessing
+
+**Never use your own memory as the source of truth for "what's the latest version of X".** LLM training data is months-to-years stale; claiming `react@18.2.0` is current when the registry has `react@19.x` turns every DEP-1 / DEP-6 / TOOL-3 finding into noise and misleads fix sessions.
+
+When you need to assess dependency freshness (DEP-1 outdated versions, DEP-6 deprecated/abandoned, TOOL-3 outdated tooling, or any `Fix:` line that names a version number), use at least one of these three sources — in preference order:
+
+1. **Run the project's native outdated command** from the allowlist above (`bun outdated`, `npm outdated`, `pnpm outdated`, etc.). Single source of truth, matches the project's registry configuration (public npm, private registry, vendored mirror), and produces a machine-readable diff between pinned and latest.
+2. **Web-search for "latest stable version of X" at analysis time** (or equivalent query naming the package). Use your harness's web-search tool if available. Name the source URL in the finding's `Notes:` line.
+3. **Fetch the registry's version metadata directly** if your harness supports it (e.g., `https://registry.npmjs.org/<pkg>/latest`, `https://pypi.org/pypi/<pkg>/json`). Cite the URL + access date in `Notes:`.
+
+If none of the three is available in your harness, mark the finding Confidence: `Plausible` (not `Verified`) and annotate `Notes: version freshness not verified at analysis time — subagent must re-check before applying the fix`. The finding is still useful as a signal but cannot be `autofix-ready`.
+
+**Output contract for version findings.** Every `DEP-1`, `DEP-6`, `TOOL-3` finding (or any finding whose `Fix:` specifies a version bump) must include in its body:
+
+- **Current pinned version** — what the project uses now, cited from `package.json` / `Cargo.toml` / `pyproject.toml` / `go.mod` / etc.
+- **Latest stable version** — what the registry says as of this run, with source: `(source: bun outdated)` / `(source: npmjs.com/package/foo 2026-04-22)` / `(source: web search "latest stable version of foo" 2026-04-22)`.
+- **Gap** — e.g., *"pinned 1.2.3, latest 4.5.6 — two major versions behind"*.
+
+Findings lacking the source citation are demoted during synthesis §8 as malformed-version-finding.
+
+**Handling abandoned packages.** DEP-6 requires more than "outdated" — it requires evidence of abandonment. Signals: last-release date >18 months ago, repo archived on GitHub, README deprecation notice, official successor package named. Web-search is often required; `<pm> outdated` does not surface abandonment. Cite at least one specific signal in the finding body: *"last release 2024-02 (18 months before this run), repo archived 2024-06 per github.com/foo/bar"*.
 
 ### Invocation verification for autofix-ready
 
@@ -257,6 +297,7 @@ Review your own output against these signals. If any trigger, go back and do the
 | **Shallow reads** | You used Read on <30% of files in your scope globs | You cannot credibly claim analysis of code you did not read. Read more files. |
 | **Invocation unverified** | Any `autofix-ready` finding recommends a tool invocation without checking the project's pinned toolchain | See "Invocation verification for autofix-ready" above. Downgrade to `Plausible`. |
 | **Table-form checklist** | Any checklist item emitted as a markdown table row | Break the table into line shapes. The five canonical shapes are not stylistic — synthesis rejects tables wholesale. |
+| **Unsourced version claims** | Any DEP-1 / DEP-6 / TOOL-3 finding cites a "latest version" without a source line (native command, web search, or registry URL) | LLM memory is not a valid source. Run the allowlisted outdated command or web-search before citing versions. See "Dependency freshness checks". |
 
 These thresholds are not rigid pass/fail gates — they are smell tests. A genuinely healthy codebase can have a high clean ratio, but that is rare and your Summary must explain why. The point is to catch the pattern where a model does the minimum to look productive.
 
@@ -276,6 +317,8 @@ For every file you analyze, you must read beyond imports and type signatures int
 | "`/health` endpoint absence is just N/A for this tier" | Use `[x] clean — <reason absence is fine for tier>`, not `[-] N/A`. `[-] N/A` is for "does not apply", not "absent but fine". |
 | "I analyzed it but chose not to file — marking `[x]`" | If you analyzed and chose not to file, the evidence text must explain why absence is correct; otherwise it's a malformed clean and gets defect-demoted. |
 | "Self-check tripped but I'm tired" | Fix it before submitting. Defects surface downstream and cost synthesis time. |
+| "I know the latest version of React is 18" | Your training data is months-to-years stale. Run `<pm> outdated` or web-search for the current version before citing one. |
+| "The docs say package X supports Y; good enough" | Docs rot. For DEP-1 / DEP-6 / TOOL-3 cite a live source (native command or registry query), not documentation you recall. |
 
 ---
 

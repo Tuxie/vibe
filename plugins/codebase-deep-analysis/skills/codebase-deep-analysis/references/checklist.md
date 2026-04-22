@@ -155,6 +155,8 @@ Only triggers for user-facing web apps (not internal tools, not CLI UIs, not das
 
 For concrete frontend overlap patterns (icons, dates, HTTP clients, UI kits, state libs), see `FE-9..FE-14` — raise those instead of a generic DEP-2 when a frontend-specific pattern fits, so the finding lands in a frontend cluster rather than a generic "dependency bloat" bucket.
 
+**Version-freshness rule.** `DEP-1` and `DEP-6` findings require a live source for "latest stable version" — never cite from LLM memory. Run the project's native outdated command (`bun outdated`, `npm outdated`, `pnpm outdated`, `cargo outdated`, `pip list --outdated`, `go list -m -u all`, etc.) or web-search at analysis time. See `analyst-ground-rules.md` "Dependency freshness checks" for the full rule and source-citation contract. Synthesis §8 demotes unsourced version claims.
+
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
 | DEP-1 | Outdated package versions | T1 | Backend, Frontend |
@@ -316,6 +318,9 @@ Only if CI config (`.github/workflows/**`, `.gitlab-ci.yml`, etc.) present.
 | CI-4 | Self-hosted runner on a public repo without protections | T3 | Tooling, Security |
 
 ## TOOL — Tooling & build (non-CI, non-CONT, non-BUILD)
+
+**Version-freshness rule for TOOL-3.** Same contract as DEP-1 — cite a live source (native outdated command, web search, or registry query) for "latest stable version" claims. Do not cite from LLM memory. See `analyst-ground-rules.md` "Dependency freshness checks".
+
 
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
