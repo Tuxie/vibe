@@ -161,12 +161,13 @@ For concrete frontend overlap patterns (icons, dates, HTTP clients, UI kits, sta
 |----|------|----------|-------|
 | DEP-1 | Outdated package versions | T1 | Backend, Frontend |
 | DEP-2 | Redundant or overlapping packages (two do the same job) — use FE-9..FE-14 for frontend-specific overlap patterns | T1 | Backend, Frontend |
-| DEP-3 | Declared package with no imports (unused in manifest) | T1 | Backend, Frontend |
+| DEP-3 | Declared package with no imports (unused in manifest). Documentation-only mentions do not count as usage — a package must be imported/required in source, test, or build-config files to be considered "used" | T1 | Backend, Frontend |
 | DEP-4 | Hand-rolled implementation where a maintained package fits better | T2 | Backend, Frontend |
 | DEP-5 | Non-optimal stdlib module choice for the actual use case | T1 | Backend, Frontend |
 | DEP-6 | Deprecated or abandoned package still in use | T1 | Backend, Frontend |
 | DEP-7 | Backwards-compat shims for modules no longer needed | T1 | Backend, Frontend |
 | DEP-8 | Unintended dependency on host-system software or globally installed tools | T1 | Backend, Frontend |
+| DEP-9 | Runtime-native functionality replaced by external package — using a third-party package for something the project's declared runtime provides as a built-in. Cross-reference the Scout's runtime identification against installed packages. Examples: `ws` on Bun (native WebSocket via `Bun.serve`), `node-fetch` on Node 18+/Bun/Deno (native `fetch`), `dotenv` on Bun (auto `.env` loading), `bcrypt` native addon where `Bun.password` exists, `glob` on Node 22+ (native `fs.glob`). The runtime must be explicitly declared in the project — do not assume | T1 | Backend, Frontend |
 
 ## NAM — Naming & layout
 
