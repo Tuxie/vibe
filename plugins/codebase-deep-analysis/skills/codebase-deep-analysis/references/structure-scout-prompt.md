@@ -90,7 +90,7 @@ Answer each with `present` / `absent` plus one-line evidence. These prune analys
 - `tests` — any directory or naming convention indicating tests.
 - `security-surface` — any of: authn/authz code, HTTP/RPC endpoints that accept external input, file IO on user input, subprocess spawning, deserialization of untrusted data, crypto usage, network clients.
 - `tooling` — CI/CD config, Dockerfiles, build scripts, dev scripts, Makefiles, deploy configs.
-- `docs` — any of `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `README.md`, `docs/*`.
+- `docs` — any of `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `docs/*`.
 - `container` — Dockerfile / Containerfile / OCI build present.
 - `ci` — CI configuration present.
 - `iac` — terraform / k8s manifests / helm / pulumi / cloudformation present.
@@ -103,11 +103,11 @@ Answer each with `present` / `absent` plus one-line evidence. These prune analys
 
 ## Load-bearing instruction-file drift (docs-drift flag)
 
-`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `README.md` often specify behaviors, file paths, or invariants that the code has silently moved away from. This section surfaces that drift risk cheaply so the Docs analyst (and synthesis) know where to look. You are not verifying claims — just flagging suspected staleness.
+Agent-instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) and `README.md` often specify behaviors, file paths, or invariants that the code has silently moved away from. This section surfaces that drift risk cheaply so the Docs analyst (and synthesis) know where to look. You are not verifying claims — just flagging suspected staleness.
 
 Three independent signals are collected per doc. The final call requires **all three** clean for `fresh`; any dirty produces a `drifted` call with a sub-reason. This is because a high-velocity solo repo can touch a doc daily (timestamp fresh) while the touches cover unrelated micro-edits and the doc's references-to-code are stale (structurally drifted), and a structurally-clean doc can still claim the wrong default value for a config the code has since changed (content drifted). Timestamp alone misses the last two shapes.
 
-For each of `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and top-level `README.md` that exists:
+For each agent-instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) and top-level `README.md` that exists:
 
 ### Signal 1 — timestamp drift
 
@@ -146,7 +146,7 @@ Cap at 5 declarations checked per doc. Full correctness check is the Docs analys
 
 ```
 Docs drift:
-- CLAUDE.md — last change {sha date}; status: {fresh | drifted-timestamp | drifted-structurally | drifted-content | drifted-multi | unknown}; {one-line reason when drifted}
+- {instruction filename} — last change {sha date}; status: {fresh | drifted-timestamp | drifted-structurally | drifted-content | drifted-multi | unknown}; {one-line reason when drifted}
 - AGENTS.md — ...
 - ...
 ```
@@ -165,7 +165,7 @@ If no instruction-file drift risk is evident across all present docs, emit `Docs
 Some repos ship with both a CI workflow and a local CI-equivalent runner — `act`, `nektos/act`, `make check`, `justfile` `check` target, `vagrant`, `taskfile` check. When both exist, a pre-tag local verification step has outsize value (catches release-workflow bugs before a failed push). Detect presence-only (do not invoke anything):
 
 - CI config present: any of `.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/config.yml`, `Jenkinsfile`, `azure-pipelines.yml`.
-- Local CI-equivalent present: any of `act` / `nektos/act` mentioned in `CLAUDE.md` / `AGENTS.md` / `Makefile` / `justfile` / `Taskfile*`, a `check` / `verify` target in `Makefile` / `justfile` / `Taskfile*`, or a `vagrantfile`.
+- Local CI-equivalent present: any of `act` / `nektos/act` mentioned in an agent-instruction file / `Makefile` / `justfile` / `Taskfile*`, a `check` / `verify` target in `Makefile` / `justfile` / `Taskfile*`, or a `vagrantfile`.
 
 Emit:
 

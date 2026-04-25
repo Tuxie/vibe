@@ -27,12 +27,16 @@ Anchor severities against these examples rather than deriving from abstract prin
 | Missing timeout on local IPC call with no blast radius beyond self | Low | Low | Medium |
 | Constant-time-compare side channel, no remote attacker present | Low | Low | Medium |
 | Unvalidated argv passed to shell subprocess | Medium | High | Critical |
+| Extracting an ID/status from message text when a structured field exists | Medium | Medium | High |
+| Returning prose-only data that downstream code must parse for machine values | Medium | Medium | High |
 | Missing retry on idempotent HTTP call to a reliable dependency | Low | Medium | Medium |
 | No automated pre-release verification gate | N/A | Medium | High |
 | Public endpoint without authn | High | Critical | Critical |
 | N+1 query on a tight-loop code path | Medium | High | High |
 | Race condition in a singleton initializer | Low | Medium | High |
 | Unhandled promise / orphaned goroutine on a fallible path | Medium | Medium | High |
+| Sleep/poll loop used where an event/completion signal exists | Low | Medium | High |
+| CI tests source code but releases an untested packaged artifact | Medium | High | Critical |
 | Missing `--` separator before user-controlled positional arg to `tmux` / `git` / similar | Medium | Medium | Medium |
 | Test tautologically asserts the mock's return value | Low | Low | Medium |
 
@@ -60,7 +64,7 @@ When both tables apply (mixed surface: local-first admin UI + public telemetry e
 
 ## Ground rules (non-negotiable)
 
-1. **Read project instructions first, in this order:** the files listed in `{CLAUDE_MD_FILES}`. Treat documented decisions as intentional. A finding that contradicts an explicit documented decision must either (a) cite why the doc itself is wrong or stale, or (b) be dropped. Do not flag a project rule as a bug. **However:** "documented decision" means an explicit, specific statement of intent (e.g., "we use inline styles for email templates"). A general description like "built with CSS" or "uses React" is not a decision defending every CSS or React pattern in the codebase. Do not use vague documentation as a shield against legitimate findings.
+1. **Read project instructions first, in this order:** the files listed in `{INSTRUCTION_FILES}`. Treat documented decisions as intentional. A finding that contradicts an explicit documented decision must either (a) cite why the doc itself is wrong or stale, or (b) be dropped. Do not flag a project rule as a bug. **However:** "documented decision" means an explicit, specific statement of intent (e.g., "we use inline styles for email templates"). A general description like "built with CSS" or "uses React" is not a decision defending every CSS or React pattern in the codebase. Do not use vague documentation as a shield against legitimate findings.
 
 2. **Codebase map:** read `{CODEBASE_MAP_PATH}` exactly once. Do not paste its contents into your output; refer to directories and entry points by path instead.
 
@@ -110,6 +114,37 @@ When both tables apply (mixed surface: local-first admin UI + public telemetry e
    (The Coverage & Profiling analyst has a separate, broader exception in Step 3.5; the allowlist above is for all analysts, not just Coverage.)
 
 7. **No runtime observation.** Do not run tests or builds to "observe behavior." If dynamic behavior matters, describe what static analysis cannot answer and mark the finding Confidence: Speculative.
+
+---
+
+## Required bug-pattern passes
+
+These passes are mandatory where their surfaces exist. They are not style preferences; they catch correctness bugs that often slip through broad review.
+
+### Structured data beats text parsing
+
+Search for code that parses human-oriented strings to recover values: `split`, `match`, regex capture groups, substring slicing, `includes`, `indexOf`, shell-text parsing, XML/HTML text scraping, log scraping, or error-message parsing. For each hit, ask whether the value already exists in a structured source nearby:
+
+- Database/ORM column or query result field.
+- JSON/XML field, HTTP header, status code, trailer, structured response body, or typed SDK property.
+- Structured error/code/cause/details object.
+- Event payload field, queue message field, CLI option parser result, or generated artifact metadata.
+
+If the structured value exists, file `QUAL-10` (or `API-5` when the bad shape is an API response). If downstream callers are forced to parse returned prose because the producer omits separate fields, file `QUAL-11` / `API-5` against the producer, not just the consumer. A good fix exposes the machine value as a field and leaves prose as display-only.
+
+Do not over-flag parsers whose actual job is parsing a protocol or user-authored language (CSV parser, XML parser, compiler, router, date parser, log importer). The smell is parsing display/error/prose text when a structured source of truth is available.
+
+### Async completion must be explicit
+
+Search for racy async shapes: floating promises/coroutines/tasks/goroutines, callbacks that set state after the caller returns, event handlers registered after the event may already fire, stream/process/worker operations without close/exit/join awaits, queue sends without delivery confirmation when required, and tests that start async work without joining it. File `CONC-6` or `TEST-12` when correctness depends on scheduler timing.
+
+Search separately for polling/sleep synchronization: `sleep`, `setTimeout`, `setInterval`, `waitForTimeout`, retry loops around readiness checks, busy waits, arbitrary timeouts in tests, and loops polling files/ports/flags. If a real completion signal exists (event emitter, promise, channel, condition variable, observer, stream `finish`/`close`, process `exit`, worker message, fake timer advancement, framework lifecycle hook), file `CONC-7` or `TEST-11`. Polling can be acceptable for external systems that expose no event source; in that case mark clean with the sampled scope and why no event path exists.
+
+### CI must test the artifact users receive
+
+For Tooling/Security, inspect CI build/test order and release packaging. If the workflow builds an executable, Docker image, browser bundle, generated client, compiled package, or single-file binary, verify that at least a smoke/contract test runs against that artifact after packaging. Running unit tests against source before packaging is useful but does not prove the packaged artifact works. File `CI-5` and/or `BUILD-4` when CI can pass while the release artifact is broken, missing assets, missing native dependencies, using different entry points, or bundling different code than tests exercised.
+
+Common examples: Bun/SEA/pkg/Nuitka/PyInstaller binaries, Docker images, compiled TS output, minified frontend bundles, generated API clients, CLI tarballs, wheels/gems/npm packages, and Electron/Tauri apps. The fix should be tier-sized: T1 may only need a one-command artifact smoke test; T3 may need full post-package contract checks.
 
 ---
 
@@ -298,6 +333,9 @@ Review your own output against these signals. If any trigger, go back and do the
 | **Invocation unverified** | Any `autofix-ready` finding recommends a tool invocation without checking the project's pinned toolchain | See "Invocation verification for autofix-ready" above. Downgrade to `Plausible`. |
 | **Table-form checklist** | Any checklist item emitted as a markdown table row | Break the table into line shapes. The five canonical shapes are not stylistic — synthesis rejects tables wholesale. |
 | **Unsourced version claims** | Any DEP-1 / DEP-6 / TOOL-3 finding cites a "latest version" without a source line (native command, web search, or registry URL) | LLM memory is not a valid source. Run the allowlisted outdated command or web-search before citing versions. See "Dependency freshness checks". |
+| **Text-parsing pass skipped** | Scope contains string parsing around errors, API responses, logs, CLI output, database rows, or event payloads, but QUAL-10/QUAL-11/API-5 checklist lines are all `clean` without sampling concrete parser sites | Re-read the parser sites and prove the parsed values do not exist as structured fields before claiming clean. |
+| **Async-event pass skipped** | Scope contains sleeps, polling loops, timers, event emitters, streams, subprocesses, workers, or async tests, but CONC-6/CONC-7/TEST-11/TEST-12 are all `clean` without naming sampled wait/completion sites | Re-read the async control flow; identify the actual completion signal or file a finding. |
+| **Artifact verification pass skipped** | CI/build config creates a packaged artifact, but CI-5/BUILD-4 are `clean` without naming the post-package command that exercises that exact artifact | Re-read the workflow and release scripts; source-level tests alone are not artifact verification. |
 
 These thresholds are not rigid pass/fail gates — they are smell tests. A genuinely healthy codebase can have a high clean ratio, but that is rare and your Summary must explain why. The point is to catch the pattern where a model does the minimum to look productive.
 

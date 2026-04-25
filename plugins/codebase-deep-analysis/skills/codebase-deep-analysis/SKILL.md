@@ -107,7 +107,7 @@ digraph analysis_flow {
 
 ## Step 1 — Structure Scout
 
-Dispatch **one** Explore subagent with the prompt in `references/structure-scout-prompt.md`. Haiku is preferred for this pass; fall back to the default model if Haiku is unavailable.
+Dispatch **one** Explore subagent with the prompt in `references/structure-scout-prompt.md`. A junior/low-cost model is preferred for this pass; fall back to the default model if that tier is unavailable.
 
 The Scout's job is four things: (a) map the codebase; (b) **classify the project tier (T1 / T2 / T3)** with cited evidence; (c) flag **load-bearing instruction-file drift** (CLAUDE.md / AGENTS.md / GEMINI.md / README.md that have fallen behind the code they reference); (d) detect the **pre-release verification surface** (CI config + local CI-equivalent runner). The tier is the single biggest right-sizing lever — it drives which analysts run, which checklist items are owned, and which findings survive synthesis. The drift flag tells the Docs analyst where to look hardest. The pre-release surface controls whether the final README emits a release checklist.
 
@@ -139,7 +139,7 @@ Launch all remaining analysts **in a single message** using multiple `Agent` too
 - `{CODEBASE_MAP_PATH}` — the scratch file you wrote in Step 1
 - `{PROJECT_TIER}`, `{TIER_RATIONALE}` — copied from the Scout's Project-tier block
 - `{OWNED_CHECKLIST_ITEMS}` — the subset of `references/checklist.md` this agent owns, with min-tier tags copied inline (the agent should not need to read the full checklist file)
-- `{CLAUDE_MD_FILES}` — list of actual top-level instruction/doc files that exist (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `README.md`, `docs/*.md`)
+- `{INSTRUCTION_FILES}` — list of actual top-level instruction/doc files that exist (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `docs/*.md`)
 - `{APPLICABILITY_FLAGS}` — Scout's applicability flags block (including sub-flags like `web-facing-ui: present, auth-gated`). Analysts key default N/A behaviors off these.
 
 Hard rules the wrapper + ground rules enforce (read both before editing):
@@ -184,7 +184,7 @@ See `references/synthesis.md`. Summary of what happens here:
 5. **Hybrid clustering** (§6). Seed clusters from analyst `Cluster hint:` labels, reshape to share files/subsystems, apply the soft cap of 5–10 findings per cluster (split at >12). Each cluster is a self-contained fix session.
 6. **Executive Summary** selects up to 5 clusters by severity + confidence + spread/sensitivity.
 7. **Validate checklist integrity**; defect-demote bare `[x]` and contradictory `[-] N/A`.
-8. **Draft META-1 entries** — CLAUDE.md rules that would have prevented recurring finding shapes.
+8. **Draft META-1 entries** — agent-instruction rules that would have prevented recurring finding shapes.
 9. **Optional single targeted re-dispatch** if Executive Summary is thin or defects demand it.
 10. **Freeze.** No further changes during rendering.
 
@@ -225,7 +225,7 @@ Findings that synthesis keeps but the maintainer chooses not to schedule during 
 
 ### Hook-induced edit races
 
-If a project-level `PostToolUse` or git-commit hook auto-stamps `Resolved-in:` on cluster files (common in repos where `SessionStart` or commit hooks touch CLAUDE-adjacent files), disable the hook during fix work or let it drive — manual-and-hook-together produces edit races that require amend cycles to clean up. Name the hook in the report's Run metadata if one is discovered.
+If a project-level `PostToolUse` or git-commit hook auto-stamps `Resolved-in:` on cluster files (common in repos where `SessionStart` or commit hooks touch agent-instruction files), disable the hook during fix work or let it drive — manual-and-hook-together produces edit races that require amend cycles to clean up. Name the hook in the report's Run metadata if one is discovered.
 
 See `references/report-template.md` "Cluster `Status` lifecycle" for the full state table (including `partial`). See `references/synthesis.md` §11 (Depends-on resolution) and §12 (scope expansion) for the two follow-on patterns that govern what fix sessions are allowed to do after the report is frozen.
 
@@ -240,7 +240,7 @@ Immediately after Step 5 renders — **before the token-saving context decay mak
 - **Part A — Runner retrospective.** You (the orchestrator) fill this in now. You have just driven every step of the skill; you know where the references over-specified, where they under-specified, where the filter dropped something it shouldn't have, and what token/time cost each analyst actually incurred. Write while that memory is live. The template lists every subsection — do not skip subsections, but a truthful "nothing notable here" is an acceptable body for one.
 - **Part B — Fix coordinator retrospective.** Leave as the empty template. The person (or agent) who later coordinates fix sessions on this report appends Part B when the last cluster closes, defers, or stalls.
 
-The audience is **the author of the next version of this skill** — a future Claude instance reading this file with no context from this run **and no access to the analyzed codebase**. Write to them directly. Name files *in the skill* (references, scripts, SKILL.md sections) and quote template text verbatim; give token counts when you have them. But **anonymize everything about the analyzed project** — no repo name, no real paths, no internal service names, no secrets, no exploit-grade security detail. Replace with generic stand-ins that preserve shape (`module-A`, `the ORM layer`, `a T2 Python+TS web app`). Keep tier, stack family, rough size, analyst token counts, wall time — those are calibration signal, not identification. General advice ("be more specific") is useless; anonymized-but-specific observations ("on a T3 polyglot repo with 14 analysts the scout's 500-line budget was 2x too small") are what drives real improvements.
+The audience is **the author of the next version of this skill** — a future capable agent reading this file with no context from this run **and no access to the analyzed codebase**. Write to them directly. Name files *in the skill* (references, scripts, SKILL.md sections) and quote template text verbatim; give token counts when you have them. But **anonymize everything about the analyzed project** — no repo name, no real paths, no internal service names, no secrets, no exploit-grade security detail. Replace with generic stand-ins that preserve shape (`module-A`, `the ORM layer`, `a T2 Python+TS web app`). Keep tier, stack family, rough size, analyst token counts, wall time — those are calibration signal, not identification. General advice ("be more specific") is useless; anonymized-but-specific observations ("on a T3 polyglot repo with 14 analysts the scout's 500-line budget was 2x too small") are what drives real improvements.
 
 **Capture the skill's own revision at the start of the run** (Step 0 already does this) and paste it into the `Skill revision:` field of the template's Run identity block. Use this fallback chain — the first value that resolves wins, and the field names which source was used:
 
@@ -256,13 +256,13 @@ The scratch codebase map is retained. `analysis-analysis.md` is **not** under `.
 
 ## Model selection
 
-Default every analyst to **Sonnet**. Escalations:
+Default every analyst to the **standard** model tier. Escalations:
 
-- **Security Analyst → Opus** by default (cross-cutting; high cost of missing a finding).
-- **Any analyst whose declared scope exceeds ~50k LOC, or which returns >30 High/Critical findings in the first pass → re-dispatch that agent on Opus** for a second, deeper pass and merge outputs during synthesis.
-- **Haiku** only for Structure Scout (and any pure enumeration helper you add later).
+- **Security Analyst → senior** by default (cross-cutting; high cost of missing a finding).
+- **Any analyst whose declared scope exceeds ~50k LOC, or which returns >30 High/Critical findings in the first pass → re-dispatch that agent on senior** for a second, deeper pass and merge outputs during synthesis.
+- **Junior** only for Structure Scout (and any pure enumeration helper you add later).
 
-There is **no** "when unsure, pick the more powerful tier" override. Unsure stays Sonnet; synthesis escalates surgically rather than broadly.
+There is **no** "when unsure, pick the more powerful tier" override. Unsure stays standard; synthesis escalates surgically rather than broadly.
 
 ## Common mistakes
 

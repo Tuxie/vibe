@@ -11,7 +11,7 @@ Part B has **two v-next audiences** and the retrospective must serve both:
 1. **The author of the next codebase-deep-analysis version (cda v-next).** Needs evidence about whether the *report* was faithful — did clusters match implementation reality, were findings correctly attributed, did the synthesis right-sizing filter draw the right line. Read cda's `analysis-analysis-template.md` "Writing rules" for the anonymization contract.
 2. **The author of the next implement-analysis-report version (iar v-next).** Needs evidence about whether the *fix-coordinator* was adequate — did the preflight capture the right decisions, did gate detection cover the project's toolchain, did showstopper handling resolve cleanly, did the subagent wrapper output contract work as specified.
 
-Both audiences are future Claude instances with no access to this report, this project, or this run's transcripts. Write directly to them. A single Part B section serves both — separate suggestions are emitted in the dedicated `cda v-next` and `iar v-next` subsections near the end.
+Both audiences are future capable agents with no access to this report, this project, or this run's transcripts. Write directly to them. A single Part B section serves both — separate suggestions are emitted in the dedicated `cda v-next` and `iar v-next` subsections near the end.
 
 Anonymization contract matches cda's Part A (see `codebase-deep-analysis/references/analysis-analysis-template.md` "Writing rules"):
 

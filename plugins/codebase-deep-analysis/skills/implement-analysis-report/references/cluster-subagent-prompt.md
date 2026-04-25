@@ -14,7 +14,7 @@ Placeholders to fill:
 - `{DECISION_ANSWER}` — from `PREFLIGHT_DECISIONS.decisions[slug]` (empty string for autofix-ready clusters)
 - `{NEEDS_SPEC_TEXT}` — from `PREFLIGHT_DECISIONS.needs_spec_handling[slug]` when value starts with `spec:` (empty otherwise)
 - `{ATTRIBUTION_CLUSTER}` — from frontmatter `attribution:` (empty when absent)
-- `{MODEL_HINT}` — from frontmatter `model-hint:` (one of `haiku` / `sonnet` / `opus`; default `sonnet` when absent). Orchestrator uses this to select the subagent model at dispatch time.
+- `{MODEL_HINT}` — from frontmatter `model-hint:` (one of `junior` / `standard` / `senior`; default `standard` when absent). Orchestrator uses this to select the subagent model tier at dispatch time. Unknown legacy values are treated as `standard`.
 - `{TEST_DIR_CLASSIFICATION}` — the `PREFLIGHT_DECISIONS.test_dir_classification` map as a compact table (one row per test dir with `tsc_checked` and `notes`). Subagent consults this when its implementation adds a new test file.
 - `{PROJECT_WORKING_TREE}` — absolute path to project root
 
@@ -31,7 +31,7 @@ Produce the code changes named in the cluster's Findings section. When done, ret
 
 1. The cluster file: {CLUSTER_FILE_PATH}
    Attend to: TL;DR goal, Files touched, Severity & autonomy, Findings (every finding in order), Suggested session approach.
-2. The project's CLAUDE.md / AGENTS.md / GEMINI.md / README.md if present at the project root.
+2. The project's agent-instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) and `README.md` if present at the project root.
 3. Any file referenced by a finding's `Location:` line.
 
 ## Extra context from the run's preflight

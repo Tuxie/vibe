@@ -1,6 +1,6 @@
 # Analyst prompt wrapper (minimal)
 
-Fill placeholders `{SKILL_DIR}`, `{AGENT_NAME}`, `{SCOPE_GLOBS}`, `{CODEBASE_MAP_PATH}`, `{PROJECT_TIER}`, `{TIER_RATIONALE}`, `{APPLICABILITY_FLAGS}`, `{OWNED_CHECKLIST_ITEMS}`, `{CLAUDE_MD_FILES}` before dispatching. Copy the text between the fences into the Agent prompt.
+Fill placeholders `{SKILL_DIR}`, `{AGENT_NAME}`, `{SCOPE_GLOBS}`, `{CODEBASE_MAP_PATH}`, `{PROJECT_TIER}`, `{TIER_RATIONALE}`, `{APPLICABILITY_FLAGS}`, `{OWNED_CHECKLIST_ITEMS}`, `{INSTRUCTION_FILES}` before dispatching. Copy the text between the fences into the Agent prompt.
 
 The wrapper is intentionally short (~40 lines). The full ground rules, finding format, line-shape rules, severity anchors, self-check rubric, and invocation-verification rule live in `analyst-ground-rules.md` — the agent Reads them from disk at dispatch time. This halves dispatch token cost vs. v2.
 
@@ -29,7 +29,7 @@ For any flag with value `uncertain` or a sub-flag like `auth-gated` / `local-onl
 
 ## Instruction files to read first
 
-{CLAUDE_MD_FILES}
+{INSTRUCTION_FILES}
 
 ## Codebase map
 

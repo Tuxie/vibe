@@ -38,7 +38,7 @@ docs/code-analysis/{YYYY-MM-DD | YYYY-MM-DD-HHMMSS}/
 │   ├── docs.md
 │   └── coverage-profiling.md    # Only if Step 3.5 ran (static or dynamic); otherwise omitted
 ├── checklist.md                 # Full checklist, defects visible
-├── meta.md                      # META-1 draft CLAUDE.md rules (or "none")
+├── meta.md                      # META-1 draft agent-instruction rules (or "none")
 ├── not-in-scope.md              # What was intentionally skipped, with reasons
 ├── scripts/
 │   └── render-status.sh         # Copied in at render time; lets the fix coordinator regenerate the cluster index without the skill repo on disk
@@ -89,7 +89,7 @@ The folder slug is the date (or date + time on collision). `clusters/` numbering
 - Analysts dispatched: {comma-separated list}
 - Analysts skipped: {comma-separated list with one-line reason each, or "none"}
 - Scope overrides: {list any per-agent scope-glob overrides that differed from `agent-roster.md` defaults, or "none"}
-- Re-dispatch passes: {list targeted Opus re-dispatches performed during synthesis, or "none"}
+- Re-dispatch passes: {list targeted senior-tier re-dispatches performed during synthesis, or "none"}
 - Right-sizing filter: {N dropped, M fix-rewritten, K below-threshold, P stylistic, Q rule-restatement} — see `not-in-scope.md` for detail.
 - Report directory: `{path}`
 - Scout map: `.scratch/codebase-map.md`
@@ -254,7 +254,7 @@ An empty `Commit-guidance:` field is the norm; do not pad it for every cluster.
 | `Pre-conditions:` | optional | prerequisites this cluster's fix needs in place to land cleanly. Populated automatically by synthesis §5 "Pre-conditions inference" when the cluster flips a gate (coverage threshold, lint rule, type check) and in-scope files currently fail that gate. Format: bulleted list, each `- <file-or-cluster-ref>: <required state>`. |
 | `attribution:` | optional | fuzz-gap convention. When a fuzz-gap cluster's recommended fix catches a bug whose scope belongs to a different cluster, the bug lands in the fuzz cluster's commit but `attribution:` names the originating cluster: `attribution: 04-input-validation (caught-by: 15-fuzz-gaps)`. Do not re-file the bug under the origin cluster. |
 | `Commit-guidance:` | optional | single-line prose with cluster-specific commit notes — expected `Incidental fixes` scope, a `Depends-on:` chain to traverse, a known scope-expansion risk. Leave empty when there are no cluster-specific notes; the canonical commit rules live in the README's "Commit conventions" section. Do not restate canonical rules here. |
-| `model-hint:` | optional | `haiku` \| `sonnet` \| `opus` — synthesis populates per cluster (see `synthesis.md` §6). Default `sonnet`. `iar` reads this when dispatching per-cluster subagents. Absent = sonnet fallback. |
+| `model-hint:` | optional | `junior` \| `standard` \| `senior` — synthesis populates per cluster (see `synthesis.md` §6). Default `standard`. `iar` reads this when dispatching per-cluster subagents. Absent = standard fallback. |
 
 ### Cluster `Status` lifecycle
 
@@ -382,7 +382,7 @@ Rendered per-item in ID order, grouped by category (EFF, PERF, QUAL, …). Multi
 ## `meta.md` template
 
 ```markdown
-# Suggested CLAUDE.md additions (META-1)
+# Suggested agent-instruction additions (META-1)
 
 Drafts per `synthesis.md` §9. Each rule would have prevented ≥3 recurrences of a finding.
 
@@ -412,7 +412,7 @@ This file records what the analysis intentionally did **not** produce, so the us
 - Tier-mismatch, fix rewritten to fit tier: **{N}**
 - Below profile threshold (project=T{N}): **{N}**
 - Stylistic restatement: **{N}**
-- Rule-restatement (already in CLAUDE.md / docs): **{N}**
+- Rule-restatement (already in project instructions / docs): **{N}**
 
 ## Deferred this run
 

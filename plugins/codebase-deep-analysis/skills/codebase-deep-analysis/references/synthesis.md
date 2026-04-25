@@ -134,18 +134,18 @@ informally-unblocks: {none | NN-slug[, MM-slug]}  — soft edge: this cluster la
 Pre-conditions: {none | bulleted list of "<file-or-cluster-ref>: <required state>"}
 attribution: {none | NN-slug (caught-by: MM-slug)}  — fuzz-gap attribution convention
 Commit-guidance: {empty | single-line cluster-specific commit note}  — see report-template.md field reference
-model-hint: {haiku | sonnet | opus}  — see "Model-hint selection" below
+model-hint: {junior | standard | senior}  — see "Model-hint selection" below
 ```
 
 ### Model-hint selection
 
 Populate `model-hint:` on every cluster. Use these rules; the field is not user-facing but drives `implement-analysis-report`'s per-cluster subagent dispatch.
 
-- **Default:** `sonnet`.
-- **Downgrade to `haiku` when ALL hold:** `Autonomy: autofix-ready`, highest-severity-in-cluster is Low, no finding involves type narrowing (`any → unknown`, generic constraint changes, union refinement), no finding involves async/lifecycle changes (signal handling, cancellation, race fixes), no finding touches cross-module refactoring (shared-abstraction extraction, module split/merge).
-- **Upgrade to `opus` when ALL hold:** `Autonomy: needs-spec`, highest-severity-in-cluster is High or Critical, cluster spans >5 distinct files, AND the fix requires maintainer interview + spec design synthesized into code. `opus` is the expensive option — reserve for clusters where sonnet would likely return shape B ("cannot implement without further decision").
+- **Default:** `standard`.
+- **Downgrade to `junior` when ALL hold:** `Autonomy: autofix-ready`, highest-severity-in-cluster is Low, no finding involves type narrowing (`any → unknown`, generic constraint changes, union refinement), no finding involves async/lifecycle changes (signal handling, cancellation, race fixes), no finding touches cross-module refactoring (shared-abstraction extraction, module split/merge).
+- **Upgrade to `senior` when ALL hold:** `Autonomy: needs-spec`, highest-severity-in-cluster is High or Critical, cluster spans >5 distinct files, AND the fix requires maintainer interview + spec design synthesized into code. `senior` is the expensive option — reserve for clusters where the standard tier would likely return shape B ("cannot implement without further decision").
 
-When in doubt: default to `sonnet`. The hint is a cost optimization, not a correctness constraint; `iar` may override based on its own runtime signal (e.g., a sonnet cluster that returns shape B twice might escalate to opus on its third attempt — out of scope for this version).
+When in doubt: default to `standard`. The hint is a cost optimization, not a correctness constraint; `iar` may override based on its own runtime signal (e.g., a standard-tier cluster that returns shape B twice might escalate to senior on its third attempt — out of scope for this version).
 
 A finding belongs to **exactly one cluster**. If it genuinely spans two, follow the cross-cluster attribution rule below.
 
@@ -220,7 +220,7 @@ Walk the merged (and right-sized) findings. For any finding shape that repeats �
 
 ### Case 1 — New pattern without an existing rule
 
-Grep the project's instruction-file docs (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, top-level `README.md`, `docs/*.md`) for the rule's subject. If no match, you're in Case 1. Draft a one-line CLAUDE.md rule that would have prevented the finding:
+Grep the project's instruction-file docs (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, top-level `README.md`, `docs/*.md`) for the rule's subject. If no match, you're in Case 1. Draft a one-line rule for the project's preferred agent-instruction file that would have prevented the finding:
 
 ```
 - **{Draft rule}** — prevents: {comma-separated finding IDs or anchors}. Rationale: {one sentence}.
@@ -228,7 +228,7 @@ Grep the project's instruction-file docs (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`,
 
 ### Case 2 — Existing rule violated N times
 
-If the project's instruction-file docs already name the rule being violated (e.g., CLAUDE.md says "always sanitize filenames before passing to the filesystem" and the findings show 4 places this wasn't done), the meta-issue is **enforcement**, not rule design. A new rule duplicating the existing text is pure noise. Instead, draft an enforcement mechanism:
+If the project's instruction-file docs already name the rule being violated (e.g., an agent-instruction file says "always sanitize filenames before passing to the filesystem" and the findings show 4 places this wasn't done), the meta-issue is **enforcement**, not rule design. A new rule duplicating the existing text is pure noise. Instead, draft an enforcement mechanism:
 
 ```
 - **Enforce {existing rule name}:** add {tool/mechanism} check — prevents: {IDs}. Rationale: rule already exists in {doc path}, N violations this run indicate enforcement gap.
@@ -239,7 +239,7 @@ Choose the mechanism:
 - If a lint rule fits (ESLint/biome/ruff/pylint/rubocop/clippy), name it: *"add a biome rule `no-unsafe-paths` that forbids raw string concatenation into `fs.open`"*.
 - If a pre-commit or pre-push hook fits (simple grep / regex gate), name it: *"add a pre-commit grep forbidding `ffprobe` invocations outside `lib/probe/`"*.
 - If a CI job fits (type/lint/test check that the project already runs), extend it: *"extend `tsconfig.check.json` include to cover `tests/api/**` so the Locals.ctx type gap is caught in CI"*.
-- If no mechanical catch is available, draft a **hard-stop entry** for the project's pre-dispatch checklist: *"before committing a fix touching upload endpoints, re-read CLAUDE.md Rule 3 — rule violated 4 times this run, no automated catch"*.
+- If no mechanical catch is available, draft a **hard-stop entry** for the project's pre-dispatch checklist: *"before committing a fix touching upload endpoints, re-read the upload-safety rule in the agent instructions — rule violated 4 times this run, no automated catch"*.
 
 ### Output
 
@@ -247,7 +247,7 @@ Collect all entries under `meta.md` in the report directory. Mix Case 1 and Case
 
 ## 10. Targeted re-dispatch (optional)
 
-Dispatch a **single targeted Opus Explore agent** to re-analyze specific paths when **any** of these hold:
+Dispatch a **single targeted senior-tier Explore agent** to re-analyze specific paths when **any** of these hold:
 
 - §1b flagged ≥2 health signals on the same analyst (strong signal of under-analysis).
 - §1b flagged a high source-drop ratio where >50% of drops were "borderline" (over-aggressive filtering).

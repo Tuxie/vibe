@@ -62,6 +62,8 @@ The Structure Scout assigns the repo one tier, with evidence. Analysts filter ow
 | QUAL-7 | Reimplementation of stdlib / in-use framework functionality | T1 | Backend, Frontend |
 | QUAL-8 | Workaround where a root-cause fix is available | T1 | Backend, Frontend |
 | QUAL-9 | Cross-boundary code duplication in same-language stacks — logic reimplemented across server/client/middleware/API-layer boundaries instead of extracted to a shared module. Common in full-stack JS/TS (Node, Bun, Deno), but applies to any stack where layers share a runtime: validation, formatting, constants, type definitions, business rules, data transformation. Each analyst checks the codebase map for same-language counterparts and spot-reads for equivalent logic in the other boundary's paths | T1 | Backend, Frontend |
+| QUAL-10 | Text parsing used where structured data is already available — extracting IDs, statuses, dates, or types from error strings, log text, labels, rendered markup, filenames, or human messages when the value exists in a database column, JSON/XML field, HTTP header, typed object, enum, structured error property, or API response field | T1 | Backend, Frontend |
+| QUAL-11 | Machine consumers forced to parse prose — a function/API/event/test helper returns only text that downstream code must regex/split to recover values that should be separate fields (`order_id`, status code, path, retry delay, validation errors, etc.) | T1 | Backend, Frontend |
 
 ## ERR — Error handling patterns
 
@@ -82,6 +84,8 @@ The Structure Scout assigns the repo one tier, with evidence. Analysts filter ow
 | CONC-3 | Unbounded fan-out — spawn-per-request with no pool / semaphore | T2 | Backend |
 | CONC-4 | Missing cancellation propagation — long work cannot be interrupted | T2 | Backend, Frontend |
 | CONC-5 | Deadlock-prone lock ordering, re-entrant lock misuse | T2 | Backend |
+| CONC-6 | Racy asynchronous completion — caller proceeds before spawned work, event handlers, stream writes, subprocesses, queue jobs, promise chains, goroutines, tasks, or worker messages have actually completed; correctness depends on timing rather than an awaited completion signal | T1 | Backend, Frontend |
+| CONC-7 | Poll/sleep/timeout used as synchronization where an event, promise, channel, condition variable, callback, watcher, stream completion, process exit, or test-runner hook can signal readiness/completion directly | T1 | Backend, Frontend |
 
 ## OBS — Observability beyond logs
 
@@ -150,6 +154,7 @@ Only triggers for user-facing web apps (not internal tools, not CLI UIs, not das
 | API-2 | OpenAPI / schema file drifted from handler signature | T2 | Backend |
 | API-3 | Response-shape inconsistency across endpoints in the same API surface | T2 | Backend |
 | API-4 | Wrong HTTP status for the semantic (POST-created returning 200, 404 for auth failure, etc.) | T1 | Backend |
+| API-5 | Response omits structured fields that callers need and already exist upstream, forcing clients to scrape message strings or infer values from prose | T1 | Backend |
 
 ## DEP — Dependencies
 
@@ -255,6 +260,8 @@ Split out from DB: a good schema can still be delivered unsafely.
 | TEST-8 | Concurrency-unsafe test suite (fails under parallel workers) | T2 | Test |
 | TEST-9 | Slow tests not tagged per project convention | T2 | Test |
 | TEST-10 | Spec file mixes unrelated concerns | T1 | Test |
+| TEST-11 | Async test relies on sleeps/timeouts/polling instead of waiting on explicit events, promises, stream/process completion, fake timers, or test-runner lifecycle hooks | T1 | Test |
+| TEST-12 | Test starts async work without awaiting or otherwise joining it, so pass/fail depends on scheduler timing or leaked work from a previous test | T1 | Test |
 
 ## DET — Test determinism
 
@@ -317,6 +324,7 @@ Only if CI config (`.github/workflows/**`, `.gitlab-ci.yml`, etc.) present.
 | CI-2 | Workflow with `permissions: write-all` or unset (defaults to write on older repos) | T2 | Tooling, Security |
 | CI-3 | Secrets exposed to `pull_request` (fork) triggers instead of `pull_request_target` with guards | T2 | Tooling, Security |
 | CI-4 | Self-hosted runner on a public repo without protections | T3 | Tooling, Security |
+| CI-5 | Tests run against a different artifact than the one CI just built or will release — e.g., running source files directly while publishing a Bun/SEA/pkg/Nuitka/PyInstaller binary, Docker image, transpiled bundle, minified browser bundle, generated client, or compiled package without smoke-testing that artifact | T1 | Tooling, Security |
 
 ## TOOL — Tooling & build (non-CI, non-CONT, non-BUILD)
 
@@ -340,6 +348,7 @@ Only if CI config (`.github/workflows/**`, `.gitlab-ci.yml`, etc.) present.
 | BUILD-1 | Lockfile missing / not committed for a language that supports one | T2 | Tooling |
 | BUILD-2 | Lockfile ↔ manifest drift (declared deps don't match resolved) | T1 | Tooling |
 | BUILD-3 | Toolchain version unpinned (missing `.nvmrc` / `.tool-versions` / `rust-toolchain` / `pyproject` python-requires) | T2 | Tooling |
+| BUILD-4 | Built/release artifact is not verified after packaging — tests, smoke checks, or contract checks exercise source/intermediate files only, not the actual executable, image, bundle, package, or generated artifact users receive | T1 | Tooling |
 
 ## GIT — Git hygiene
 
@@ -397,10 +406,10 @@ Complements EFF-3 (dead code).
 | DOC-4 | Ambiguous or hard-to-follow documentation | T2 | Docs |
 | DOC-5 | Documentation that would be more useful to an LLM or new contributor if restructured or rephrased — give a concrete pointer | T2 | Docs |
 
-## META — CLAUDE.md maintenance
+## META — Agent-instruction maintenance
 
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
-| META-1 | Missing CLAUDE.md rule that would have prevented a recurring finding. List the finding IDs it would cover and draft the one-line rule. | T1 | Docs |
+| META-1 | Missing agent-instruction rule that would have prevented a recurring finding. List the finding IDs it would cover and draft the one-line rule for the project's preferred instruction file. | T1 | Docs |
 
 META-1 is drafted during synthesis (see `synthesis.md` §7), not during the Docs agent's first pass. The Docs agent owns the checklist line; input comes from merged findings.

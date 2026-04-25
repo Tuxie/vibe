@@ -1,6 +1,6 @@
 # `analysis-analysis.md` template
 
-**Purpose:** this file is the retrospective on the `codebase-deep-analysis` skill itself, written from the inside of a real run. It is the **primary input to the next version of the skill**. The v-next author (Claude, reading this file cold) will use it the way the v2 author used `tips-from-runner.md`: as the RED-phase documentation of what failed, what surprised, and what to change.
+**Purpose:** this file is the retrospective on the `codebase-deep-analysis` skill itself, written from the inside of a real run. It is the **primary input to the next version of the skill**. The v-next author (a capable agent reading this file cold) will use it the way the v2 author used `tips-from-runner.md`: as the RED-phase documentation of what failed, what surprised, and what to change.
 
 Two authors write two parts:
 
@@ -23,7 +23,7 @@ Both parts are **addressed to a specific reader**: the person or agent authoring
 - **Be specific with anchors.** "The scout prompt was too long" is not actionable. "The scout prompt's Tech-stack section ran 140 lines on a polyglot repo and blew the 500-line total budget" is actionable.
 - **Quote prompt/template text when critiquing it.** `references/foo.md` + the exact line that misfired > vague recollection.
 - **Name what worked, too.** Only saving corrections is how a skill drifts toward risk-aversion. If the tier filter, analyst parallelism, or cluster-hint vocabulary held up under pressure, say so — the v-next author will otherwise assume nothing is stable.
-- **Token costs: real numbers or the best estimate.** "Burned a lot of tokens" is useless; "Security analyst on Opus produced 47k output tokens; other analysts averaged 12k each" is useful calibration.
+- **Token costs: real numbers or the best estimate.** "Burned a lot of tokens" is useless; "Security analyst on the senior model tier produced 47k output tokens; other analysts averaged 12k each" is useful calibration.
 - **One-paragraph ceiling per bullet.** If a point needs more, it probably has ≥2 distinct points inside it — split.
 - **Suggest concrete v-next changes where you can.** Not every critique has an obvious fix; say so when that's the case.
 - **Do not duplicate `tips-from-runner.md`-style general advice.** That file is project-agnostic. This file is run-specific: what this codebase, this tier, this stack surfaced about the skill.

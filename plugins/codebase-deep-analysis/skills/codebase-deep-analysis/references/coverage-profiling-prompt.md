@@ -2,7 +2,7 @@
 
 This analyst is the **only** analyst in the skill that may execute project commands. It runs in Step 3.5 — after Step 3's parallel read-only fan-out — under the execution authorization captured at Step 0's single consolidated consent prompt. Without that authorization (`EXECUTION_CONSENT = declined`, from `EXECUTION_MODE = static-only`), it runs a static-only pass. There is no mid-run consent prompt in v3.1+.
 
-Fill placeholders `{SKILL_DIR}`, `{CODEBASE_MAP_PATH}`, `{PROJECT_TIER}`, `{TIER_RATIONALE}`, `{OWNED_CHECKLIST_ITEMS}`, `{CLAUDE_MD_FILES}`, `{APPLICABILITY_FLAGS}`, `{EXECUTION_CONSENT}`, `{DETECTED_COVERAGE_CMD}`, `{DETECTED_BENCH_CMD}` before dispatching. `EXECUTION_CONSENT` is `granted` or `declined`.
+Fill placeholders `{SKILL_DIR}`, `{CODEBASE_MAP_PATH}`, `{PROJECT_TIER}`, `{TIER_RATIONALE}`, `{OWNED_CHECKLIST_ITEMS}`, `{INSTRUCTION_FILES}`, `{APPLICABILITY_FLAGS}`, `{EXECUTION_CONSENT}`, `{DETECTED_COVERAGE_CMD}`, `{DETECTED_BENCH_CMD}` before dispatching. `EXECUTION_CONSENT` is `granted` or `declined`.
 
 **Command provenance.** `{DETECTED_COVERAGE_CMD}` and `{DETECTED_BENCH_CMD}` each arrive as one of three shapes:
 
@@ -47,7 +47,7 @@ Either way, you never invoke commands outside this list, and you never install d
 
 ## Instruction files to read first
 
-{CLAUDE_MD_FILES}
+{INSTRUCTION_FILES}
 
 ## Codebase map
 

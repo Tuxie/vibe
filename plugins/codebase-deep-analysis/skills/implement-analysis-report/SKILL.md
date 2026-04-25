@@ -102,7 +102,9 @@ If a cluster has `attribution: NN-slug (caught-by: ...)` in frontmatter, the com
 
 **Cross-cluster theme detection.** After each cluster terminates (close / partial / defer), inspect the cluster's outcome against the recognized theme shapes in `references/cross-cluster-themes.md`. Append matches to `THEMES_LOG` keyed by shape tag. Before Step 3, filter `THEMES_LOG` for shapes that hit ≥2 clusters and write each to `{report-dir}/.scratch/implement-themes.md`. Part B consumes this file in Step 5.
 
-**Per-cluster model selection.** Before dispatching the subagent, read the cluster frontmatter's `model-hint:` field if present (`haiku` / `sonnet` / `opus`). Pass it to the subagent dispatch's model selection. Default to `sonnet` when the hint is missing — this is backward-compatible with cda reports generated before v3.3.
+**Per-cluster model selection.** Before dispatching the subagent, read the cluster frontmatter's `model-hint:` field if present (`junior` / `standard` / `senior`). Pass it to the subagent dispatch's model selection. Default to `standard` when the hint is missing.
+
+Backward compatibility: older `codebase-deep-analysis` reports may carry vendor-specific hints. Treat unknown legacy values as `standard` before dispatch and do not write legacy values back into report files.
 
 ## Step 3 — Showstopper interview
 
@@ -122,7 +124,7 @@ See `references/partb-writer.md`. Opens `{report-dir}/analysis-analysis.md` and 
 
 ## Model selection
 
-Default orchestrator model: whichever Claude instance invokes the skill — no escalation rule. Per-cluster subagents inherit whatever `superpowers:subagent-driven-development` selects (typically Sonnet). Haiku is not used for implementation; the cost savings do not justify the lower reliability on code changes.
+Default orchestrator model: whichever agent invokes the skill — no escalation rule. Per-cluster subagents inherit whatever `superpowers:subagent-driven-development` selects for the requested tier. The junior tier is not used for implementation; the cost savings do not justify the lower reliability on code changes.
 
 ## Common mistakes
 
