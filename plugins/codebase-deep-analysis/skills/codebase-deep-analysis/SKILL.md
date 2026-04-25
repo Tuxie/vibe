@@ -32,6 +32,7 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 | `references/coverage-profiling-prompt.md` | Prompt for the Step 3.5 gated analyst; consumes the Step 0 consolidated preflight decision (no mid-run prompts) |
 | `references/analysis-analysis-template.md` | Two-part retrospective template (runner + fix coordinator) written **to the next skill version's author** — primary RED-phase input for v-next |
 | `scripts/render-status.sh` | Rebuilds the cluster-index block from each cluster's `Status:` / `Autonomy:` fields. Copied into the report directory at Step 5 so the fix coordinator can run it without the skill repo on disk. |
+| `scripts/validate-frontmatter.sh` | Validates cluster frontmatter before the index is regenerated; `render-status.sh` calls it automatically when present. |
 | `VERSION` | Stable skill version string; used by Step 6's revision-capture fallback chain when the skill is loaded from a plugin cache without `.git/`. |
 
 ## Execution flow
@@ -201,7 +202,7 @@ See `references/synthesis.md`. Summary of what happens here:
    - empty `Resolved-in:`
    - `Depends-on:` / `informally-unblocks:` / `Pre-conditions:` / `attribution:` populated by synthesis where applicable
 
-3. **Copy `scripts/render-status.sh` into `{report-dir}/scripts/render-status.sh`** (chmod +x). This makes the report directory self-contained — the fix coordinator can run `./scripts/render-status.sh .` from inside the report dir without the skill repo on disk. All three modes do this copy.
+3. **Copy status scripts into `{report-dir}/scripts/`** (chmod +x): `render-status.sh` and `validate-frontmatter.sh`. This makes the report directory self-contained — the fix coordinator can run `./scripts/render-status.sh .` from inside the report dir without the skill repo on disk, and the renderer will fail before rewriting the index if cluster metadata is malformed. All three modes do this copy.
 
 4. **Insert cluster-index markers.** Multi-file modes: the README's index block is bracketed by `<!-- cluster-index:start -->` / `<!-- cluster-index:end -->`. Single-file mode: same markers inside `REPORT.md`, plus each cluster's body is bracketed by `<!-- cluster:NN:start -->` / `<!-- cluster:NN:end -->` with frontmatter inside an HTML comment so `render-status.sh` can read Status / Autonomy / Resolved-in.
 
@@ -216,7 +217,7 @@ The report is a living artifact. The fields the user is expected to edit by hand
 - Flip `Status:` when work begins (`in-progress`), merges (`closed`), is partially resolved (`partial`), is punted whole (`deferred`), or is resolved incidentally by another cluster (`resolved-by-dep`).
 - Fill `Resolved-in:` with the commit SHA or release tag that resolved the cluster. For `partial`, use form `SHA (partial — <blocker>)` — e.g., `SHA (partial — bunx playwright blocked on Bun 1.4)`.
 - Update `Autonomy:` only if it changes materially during fix work (rare — usually the synthesis-assigned value holds).
-- After any edit, from inside the report directory run `./scripts/render-status.sh .` to rebuild the index block. **Do not hand-edit the index** — it will drift from the cluster files immediately. The script was copied into the report directory at Step 5 so you do not need the skill repo on disk.
+- After any edit, from inside the report directory run `./scripts/render-status.sh .` to rebuild the index block. **Do not hand-edit the index** — it will drift from the cluster files immediately. `render-status.sh` first runs `./scripts/validate-frontmatter.sh .` when present and refuses to rewrite the index until malformed metadata is fixed. Both scripts were copied into the report directory at Step 5 so you do not need the skill repo on disk.
 - When the last cluster closes, defers, or stalls, append **Part B** of `analysis-analysis.md` per `references/analysis-analysis-template.md`. Part B is the fix coordinator's retrospective; it is the second half of the input the v-next author needs, and nobody else is positioned to write it. If fix work is ongoing at the next invocation of the skill on this repo, write what you have so far and mark the rest open.
 
 ### Deferring shaped work
@@ -248,6 +249,8 @@ The audience is **the author of the next version of this skill** — a future ca
 2. `cat <skill-repo>/VERSION` → `version:<content>` when the skill is loaded from a plugin cache without `.git/` (common).
 3. `sha256sum <skill-repo>/SKILL.md | cut -c1-8` → `skill-md-hash:<hash>` when neither of the above is available.
 
+If the skill directory path itself embeds a version-like component that disagrees with the selected source (for example a plugin cache path says `3.7.0` but `VERSION` says `3.4.0`), still follow the fallback chain above, but append the path-derived value in `Skill source:` or parentheses: `Skill revision: version:3.4.0 (path:3.7.0)`. Never prefer a path-derived version over `sha:` or `version:`; it is diagnostic context, not the revision identifier.
+
 Without this identifier the v-next author cannot diff the critiqued behavior against the exact code that produced it, and every note in the retrospective becomes guesswork. Record it in the Run identity block as `Skill revision: <source>:<value>` — e.g., `Skill revision: version:3.0.0`. See `references/analysis-analysis-template.md` "Writing rules" for the full anonymization contract.
 
 Do not skip this step. A v-next author with zero retrospectives is flying blind and will regress parts of the skill that already work. A v-next author with even one honest retrospective can focus changes on the parts that actually failed.
@@ -264,6 +267,8 @@ Default every analyst to the **standard** model tier. Escalations:
 
 There is **no** "when unsure, pick the more powerful tier" override. Unsure stays standard; synthesis escalates surgically rather than broadly.
 
+If the user explicitly overrides model tiers for this run, honor the override and record it in Run metadata as `Analyst override: per user request, <scope of analysts> ran on <model/tier>`. The override does not disable the senior re-dispatch rules; if a scoped analyst still trips an escalation condition, record whether the override already satisfied it or whether a second pass ran.
+
 ## Common mistakes
 
 - **Enterprise advice to a hobby repo.** The single biggest quality failure. If the project is T1, drop anything that assumes SLOs, observability infra, team process, security review pipelines, or release management. The right-sizing filter at §3 of synthesis is the backstop — but analysts should drop at source.
@@ -273,8 +278,8 @@ There is **no** "when unsure, pick the more powerful tier" override. Unsure stay
 - **Self-certifying a fix suggestion.** If you cannot name the file, line, and exact replacement text, the `Fix:` line is omitted — not paraphrased.
 - **Ticking a checklist item with no evidence.** `[x]` without a file:line or an explicit "clean — <what was sampled>" / `[-] N/A — <reason>` is a defect; synthesis demotes it.
 - **Confusing `[?]` with `[~]`.** `[?]` means analysis was blocked; `[~] deferred` means analysis succeeded and action is intentionally punted. The two have different downstream behavior — see `synthesis.md` §8.
-- **Hand-editing the cluster index.** It is generated from cluster `Status:` / `Autonomy:` / `Resolved-in:` fields. Edit the cluster file (or the HTML-comment frontmatter in single-file mode), then from inside the report directory run `./scripts/render-status.sh .`.
-- **Looking for `scripts/render-status.sh` in the skill repo during fix work.** The script is copied into each report directory at Step 5. Use the local copy — `./scripts/render-status.sh .` from inside the report dir. Absolute paths into the skill's plugin cache are a sign something went wrong at Step 5.
+- **Hand-editing the cluster index.** It is generated from cluster `Status:` / `Autonomy:` / `Resolved-in:` fields. Edit the cluster file (or the HTML-comment frontmatter in single-file mode), then from inside the report directory run `./scripts/render-status.sh .`. If validation fails, fix the named cluster frontmatter before re-running.
+- **Looking for status scripts in the skill repo during fix work.** `render-status.sh` and `validate-frontmatter.sh` are copied into each report directory at Step 5. Use the local copy — `./scripts/render-status.sh .` from inside the report dir. Absolute paths into the skill's plugin cache are a sign something went wrong at Step 5.
 - **Pasting ground rules into every analyst prompt.** The wrapper in `references/agent-prompt-template.md` tells each agent to Read `{SKILL_DIR}/references/analyst-ground-rules.md` from disk. Do not inline the ground rules — it doubles dispatch token cost for no gain.
 - **Emitting a checklist as a markdown table.** The five canonical line shapes are load-bearing infrastructure. Tables (`| Item | Status | ... |`) break synthesis §8 validation and get demoted wholesale.
 - **Skipping Step 6.** The retrospective is how the skill evolves. An empty or boilerplate `analysis-analysis.md` is worse than none — it misleads the v-next author. Write specifics while they are fresh, or say "nothing notable" honestly.

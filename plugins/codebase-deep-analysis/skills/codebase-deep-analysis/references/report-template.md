@@ -41,7 +41,8 @@ docs/code-analysis/{YYYY-MM-DD | YYYY-MM-DD-HHMMSS}/
 ├── meta.md                      # META-1 draft agent-instruction rules (or "none")
 ├── not-in-scope.md              # What was intentionally skipped, with reasons
 ├── scripts/
-│   └── render-status.sh         # Copied in at render time; lets the fix coordinator regenerate the cluster index without the skill repo on disk
+│   ├── render-status.sh         # Copied in at render time; regenerates the cluster index
+│   └── validate-frontmatter.sh  # Copied in at render time; render-status calls this before rewriting
 └── .scratch/
     └── codebase-map.md          # Scout output, kept for later reference
 ```
@@ -61,7 +62,8 @@ docs/code-analysis/{stem}/
 ├── REPORT.md                    # Everything: metadata, token warning, tier, executive summary, clusters inline, checklist, meta, not-in-scope
 ├── analysis-analysis.md         # Retrospective (Step 6), same as other modes
 ├── scripts/
-│   └── render-status.sh         # Still copied; the `render-status.sh` workflow applies even in single-file mode because cluster status fields live inside REPORT.md (see "Single-file REPORT.md template" below)
+│   ├── render-status.sh         # Still copied; cluster status fields live inside REPORT.md
+│   └── validate-frontmatter.sh  # Still copied; validates HTML-comment frontmatter blocks
 └── .scratch/
     └── codebase-map.md
 ```
@@ -102,7 +104,7 @@ The folder slug is the date (or date + time on collision). `clusters/` numbering
 
 - [Executive summary](./executive-summary.md) — top {N} clusters
 - [Themes](./themes.md) — cross-cutting patterns
-- **Clusters** (ordered by recommended fix sequence; regenerate with `./scripts/render-status.sh .` from this report's directory after flipping any cluster's `Status:`):
+- **Clusters** (ordered by recommended fix sequence; regenerate with `./scripts/render-status.sh .` from this report's directory after flipping any cluster's `Status:`; this validates frontmatter before rewriting):
 
 <!-- cluster-index:start -->
 - [Cluster 01 — {slug}](./clusters/01-{slug}.md) — {one-line goal} · **open** · autofix-ready
@@ -120,7 +122,7 @@ The folder slug is the date (or date + time on collision). `clusters/` numbering
 
 1. Read the executive summary.
 2. Pick one cluster. Open its file. Start a brainstorming session against that cluster alone — do not try to bundle clusters.
-3. When a cluster's status changes, flip `Status:` inside the cluster file and set `Resolved-in:` to the merging commit SHA (or form `SHA (partial — <blocker>)` for `partial`). Then from this report's directory run `./scripts/render-status.sh .` to regenerate the index block above. **Do not edit the index by hand** — it will drift. The script was copied into this report at render time, so you can run it without the skill repo on disk.
+3. When a cluster's status changes, flip `Status:` inside the cluster file and set `Resolved-in:` to the merging commit SHA (or form `SHA (partial — <blocker>)` for `partial`). Then from this report's directory run `./scripts/render-status.sh .` to validate the frontmatter and regenerate the index block above. **Do not edit the index by hand** — it will drift. The scripts were copied into this report at render time, so you can run them without the skill repo on disk.
 
 ## Commit conventions
 
@@ -174,7 +176,7 @@ Top {1–5} clusters selected per `synthesis.md` §7.
 
 ## `clusters/{NN-slug}.md` template
 
-Each cluster file is a living artifact: its `Status:` field is the source of truth for the README index. When a cluster's status changes, flip it here and regenerate the index (`./scripts/render-status.sh .` from the report directory). Do not edit the README index by hand.
+Each cluster file is a living artifact: its `Status:` field is the source of truth for the README index. When a cluster's status changes, flip it here and regenerate the index (`./scripts/render-status.sh .` from the report directory). The renderer validates frontmatter first and refuses to rewrite the index on malformed metadata. Do not edit the README index by hand.
 
 ```markdown
 ---
@@ -255,6 +257,16 @@ An empty `Commit-guidance:` field is the norm; do not pad it for every cluster.
 | `attribution:` | optional | fuzz-gap convention. When a fuzz-gap cluster's recommended fix catches a bug whose scope belongs to a different cluster, the bug lands in the fuzz cluster's commit but `attribution:` names the originating cluster: `attribution: 04-input-validation (caught-by: 15-fuzz-gaps)`. Do not re-file the bug under the origin cluster. |
 | `Commit-guidance:` | optional | single-line prose with cluster-specific commit notes — expected `Incidental fixes` scope, a `Depends-on:` chain to traverse, a known scope-expansion risk. Leave empty when there are no cluster-specific notes; the canonical commit rules live in the README's "Commit conventions" section. Do not restate canonical rules here. |
 | `model-hint:` | optional | `junior` \| `standard` \| `senior` — synthesis populates per cluster (see `synthesis.md` §6). Default `standard`. `iar` reads this when dispatching per-cluster subagents. Absent = standard fallback. |
+
+Minimal frontmatter is valid when optional fields are empty. A typical cluster may carry only:
+
+```
+Status: open
+Autonomy: autofix-ready
+model-hint: standard
+```
+
+Do not add empty optional fields solely for visual symmetry.
 
 ### Cluster `Status` lifecycle
 
@@ -514,7 +526,7 @@ attribution:
 {one H3 per analyst, same content as compact-mode `by-analyst.md`}
 ```
 
-`render-status.sh` reads the `<!-- cluster:NN:start -->` / `<!-- cluster:NN:end -->` block and the commented-frontmatter inside it, same as reading `clusters/NN-slug.md` in multi-file mode. The user edits the `Status:`, `Autonomy:`, `Resolved-in:` lines inside the HTML comment; the rest of the cluster body is frozen.
+`render-status.sh` reads the `<!-- cluster:NN:start -->` / `<!-- cluster:NN:end -->` block and the commented-frontmatter inside it, same as reading `clusters/NN-slug.md` in multi-file mode. It validates these blocks with `validate-frontmatter.sh` before rewriting the index. The user edits the `Status:`, `Autonomy:`, `Resolved-in:` lines inside the HTML comment; the rest of the cluster body is frozen.
 
 {IF `Pre-release surface: Recommend yes` in scout output, append the Pre-release verification checklist section per the README template's conditional block.}
 
@@ -526,4 +538,4 @@ attribution:
 - **Line-number drift:** if Run metadata says `dirty`, per-finding `Location:` lines render as-is; the README warning covers the reader.
 - **No editorializing:** rendering adds zero commentary or recommendations beyond what synthesis produced, with the single exception of the `Suggested session approach` block in each cluster file (which is bounded to 2–3 operational sentences).
 - **Cross-references:** every finding that lives in a cluster gets a `→ see cluster NN-{slug}` pointer in its `by-analyst` section. Clusters do not need a pointer back to `by-analyst` — the cluster is authoritative.
-- **Copy `scripts/render-status.sh` in at render time.** All three modes copy the script so the report directory is self-contained and the fix coordinator can run `./scripts/render-status.sh .` from inside the report dir.
+- **Copy status scripts in at render time.** All three modes copy `render-status.sh` and `validate-frontmatter.sh` so the report directory is self-contained and the fix coordinator can run `./scripts/render-status.sh .` from inside the report dir.

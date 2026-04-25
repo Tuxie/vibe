@@ -23,10 +23,12 @@ if [[ $# -ne 1 ]]; then
   exit 2
 fi
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 report_dir="${1%/}"
 readme_multi="${report_dir}/README.md"
 readme_single="${report_dir}/REPORT.md"
 clusters_dir="${report_dir}/clusters"
+validator="${script_dir}/validate-frontmatter.sh"
 
 if [[ -d "${clusters_dir}" ]]; then
   mode="multi"
@@ -37,6 +39,13 @@ elif [[ -f "${readme_single}" ]]; then
 else
   echo "no clusters/ or REPORT.md under ${report_dir}" >&2
   exit 1
+fi
+
+if [[ -f "${validator}" ]]; then
+  if ! bash "${validator}" "${report_dir}" >/dev/null; then
+    echo "frontmatter validation failed; cluster index was not rewritten" >&2
+    exit 1
+  fi
 fi
 
 render_block_multi() {

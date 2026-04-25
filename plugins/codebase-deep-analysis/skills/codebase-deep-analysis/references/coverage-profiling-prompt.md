@@ -59,6 +59,8 @@ Read `{CODEBASE_MAP_PATH}` once. Don't paste it into output.
 
 2. **Never re-run a flaky or slow command just to "confirm".** If one invocation of the coverage command fails or hangs, that is the data point — file it and move on. One run is the data.
 
+3. **Do not submit while sibling coverage streams are still pending unless you annotate the gap.** If the coverage command launches multiple streams or produces multiple artifacts (for example unit and e2e `lcov.info`) and one stream is still running when another artifact is readable, prefer waiting until all streams complete within the timeout. If you must submit with one stream incomplete, mark affected findings `Confidence: Plausible`, add `Notes: coverage-stream-incomplete — re-check <artifact>` to each affected finding, and say in Summary which artifact was pending so synthesis can re-check before rendering.
+
 ## Static-only pass (always runs)
 
 Produce the following sub-analyses without invoking anything:
@@ -76,6 +78,7 @@ Produce the following sub-analyses without invoking anything:
    - Files at 0% line coverage (COV-1 — upgrade from static inference to Confidence: Verified).
    - Public-surface entry points at <20% (COV-2).
    - Coverage config that visibly excludes large real chunks (COV-3).
+   When the dynamic coverage run succeeds and produces authoritative per-file numbers, keep static source→test and public-surface inference as checklist/supporting evidence; do not duplicate inferior static-inference items as separate Findings for the same files unless they add a distinct failure mode.
 3. **Bench run (if bench command detected).** Invoke `{DETECTED_BENCH_CMD}` once. Capture the summary. Compare against any in-repo baseline artifact (same-named file under `bench/results/` or equivalent). If a regression is visible and reproducible, file a PERF-* finding with Confidence: Verified.
 
 **What you do not do, even with consent:**

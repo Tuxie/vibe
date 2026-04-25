@@ -59,7 +59,8 @@ Run (all read-only):
   - `Dockerfile*`, `docker-compose*.yml`, `k8s/`, `kubernetes/`, `helm/`, `terraform/`, `*.tf`, `pulumi/`, `serverless.yml`, `wrangler.toml`
   - `.github/ISSUE_TEMPLATE`, `.github/PULL_REQUEST_TEMPLATE*`
   - `README.md` (presence only; full content not read here)
-- Total non-vendored LOC: `git ls-files | grep -Ev '(^vendor/|^node_modules/|^dist/|^build/|\.min\.|\.lock$)' | xargs wc -l 2>/dev/null | tail -1` (rough; budget it and skip if >30s).
+- Code-only non-vendored LOC: count tracked source/config files while excluding generated/vendor/heavy text (`vendor/`, `node_modules/`, `dist/`, `build/`, `*.min.*`, `*.lock`, `bun.lock`, `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`, `docs/**`, `*.md`). Budget it and skip if >30s.
+- Total non-vendored LOC: optional context only, never the primary tier signal when docs or lockfiles dominate.
 
 Emit:
 
@@ -70,7 +71,8 @@ Rationale: {≤3 sentences tying signals → tier. Name specific evidence: contr
 Signals:
 - Contributors (unique authors): {N}
 - Recent activity (commits last 90d): {N}
-- Approximate LOC (non-vendored): {N}
+- Approximate LOC (code-only, non-vendored): {N}
+- Approximate LOC (total non-vendored, optional): {N or omitted}
 - LICENSE: {present | missing | placeholder}
 - CI: {none | basic | multi-job}
 - Deploy artifacts: {none | Dockerfile only | compose/helm/k8s/terraform | multi-target prod}
@@ -95,8 +97,9 @@ Answer each with `present` / `absent` plus one-line evidence. These prune analys
 - `ci` — CI configuration present.
 - `iac` — terraform / k8s manifests / helm / pulumi / cloudformation present.
 - `monorepo` — workspace config (`pnpm-workspace.yaml`, `package.json#workspaces`, nx/turbo/bazel monorepo, cargo workspaces, go workspaces).
-- `web-facing-ui` — frontend exists AND is user-facing on the public internet (not an internal dashboard behind auth-only). If uncertain, say `uncertain — {evidence}`; synthesis treats `uncertain` as `present` for Security/A11Y and `absent` for SEO.
+- `web-facing-ui` — frontend exists AND is user-facing on the public internet (not an internal dashboard behind auth-only or loopback-only bind). If uncertain, say `uncertain — {evidence}`; synthesis treats `uncertain` as `present` for Security/A11Y and `absent` for SEO.
   - **Sub-flag `auth-gated`.** If `web-facing-ui: present` AND all routes serving HTML require authn (no landing page, no marketing site, no public docs route, no unauthenticated error page that indexers would crawl), append `, auth-gated`. Example emitted line: `web-facing-ui: present, auth-gated — all / routes require bearer cookie; no unauthenticated index`. Frontend agent uses this to default SEO-class checklist items to `[-] N/A — auth-gated UI, no crawlable surface` without re-deriving. If a public marketing route exists alongside the auth-gated app, omit the sub-flag and note the split in Notable oddities.
+  - **Sub-flag `bind-gated`.** If frontend routes exist but the app is intentionally loopback-only or private-bind-only, emit `web-facing-ui: absent, bind-gated — <evidence>`. This lets Security and Frontend distinguish "no UI" from "UI exists but has no crawlable public surface."
 - `i18n-intent` — i18n framework import, `locales/` dir, bidi CSS, or explicit docs mention.
 
 `security-surface` and `docs` default to `present` unless the repo is demonstrably trivial (single algorithm file with no I/O).
@@ -132,11 +135,12 @@ The velocity scaling is load-bearing: a repo averaging >5 commits/day churns fas
 
 Docs often claim a default value (codec, resolution, format, config key, library name) that the code has since changed. Neither Signal 1 nor Signal 2 catches this: the doc was edited recently and all referenced paths exist, but the *values* the doc quotes diverge from the code-of-record.
 
-1. Grep each doc for phrases introducing a declared default: `Default:`, `default is `, `currently uses `, `by default`, `uses `, `defaults to`, `is set to ` (case-insensitive). Collect up to ~5 distinct declarations per doc — cap to bound scout cost.
+1. Grep each doc for phrases introducing a declared default: `Default:`, `default is `, `currently uses `, `by default`, `uses `, `defaults to`, `is set to ` (case-insensitive). Also collect bare dependency/tool claims shaped like `<noun phrase>: <library-or-tool-name>` or `<noun phrase>: \`<library-or-tool-name>\`` when the value looks like a manifest dependency, runtime, engine, processor, codec, or framework name. Collect up to ~5 distinct declarations per doc — cap to bound scout cost.
 2. For each declaration, extract the claimed value (codec name, resolution number, config string, library name, boolean).
-3. Locate the corresponding code-of-record: grep the codebase for the same key/variable name the doc named. Examples:
+3. Locate the corresponding code-of-record: grep the codebase for the same key/variable name the doc named, and for library/tool claims cross-check the manifest (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.) before searching imports. Examples:
    - Doc: *"Default codec: VP8"*  →  grep for `DEFAULT_CODEC`, `codec =`, `codec:` in config files and the relevant module.
    - Doc: *"Default thumbnail size is 640"*  →  grep for `THUMBNAIL_SIZE`, `thumbnailSize`, `640` in const definitions.
+   - Doc: *"Image processing: `sharp`"*  →  check whether `sharp` exists in the manifest or imports; if the manifest/imports show another processor, content-signal is dirty.
 4. If the doc's claimed value and the code's actual value disagree on ≥1 declaration, content-signal is **dirty** and the disagreement is named in the emitted reason. Otherwise **clean**.
 5. If no declaration phrases were found in the doc (most common for READMEs that don't name specific defaults), content-signal is **not meaningful** — emit as `clean` for purposes of the drift call.
 

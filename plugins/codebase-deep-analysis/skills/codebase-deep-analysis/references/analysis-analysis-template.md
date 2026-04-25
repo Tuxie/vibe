@@ -40,7 +40,7 @@ Fill this section at the end of Step 5, immediately after the report renders and
 Repo: {generic descriptor — e.g., "T2 Python+TS web app, ~40k LOC, ORM-heavy"; do NOT name the project}
 Stack family: {e.g., "Django + React SPA + Postgres"}
 Project tier called by Scout: {T1|T2|T3}
-Skill revision: {identifier for the skill version that produced this run, captured via the SKILL.md Step 6 fallback chain. Format: `<source>:<value>`. Sources: `sha:<short-sha>` (when `.git/` present), `version:<VERSION-file-contents>` (plugin cache), or `skill-md-hash:<8-char-sha256>` (last resort). Example: `version:3.0.0`.}
+Skill revision: {identifier for the skill version that produced this run, captured via the SKILL.md Step 6 fallback chain. Format: `<source>:<value>`. Sources: `sha:<short-sha>` (when `.git/` present), `version:<VERSION-file-contents>` (plugin cache), or `skill-md-hash:<8-char-sha256>` (last resort). Example: `version:3.0.0`. If the skill path embeds a conflicting version, append it as diagnostic context: `version:3.4.0 (path:3.7.0)`.}
 Skill source: {repo slug or URL the skill was loaded from, e.g., "tuxie/vibe @ plugins/codebase-deep-analysis"}
 Report directory: docs/code-analysis/{stem}/   (path-shape only; no project-specific segments)
 Analysts dispatched: {list}

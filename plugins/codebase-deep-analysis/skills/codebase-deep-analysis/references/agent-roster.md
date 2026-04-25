@@ -6,6 +6,8 @@ Every analyst also filters its owned checklist items by the Scout's **project ti
 
 Scope globs are advisory defaults; if the Scout's map reveals the project uses different conventions, adjust per-agent before dispatch and note the override in the report's Run metadata.
 
+If the user explicitly overrides analyst model tiers for the run, apply that override and record `Analyst override: per user request, <scope of analysts> ran on <model/tier>` in Run metadata. The roster's default tiers still document the baseline and still inform any later "already senior vs. needs senior re-dispatch" decision.
+
 | Agent | Default model tier | In-scope paths / patterns | Owned checklist IDs |
 |-------|---------------|---------------------------|---------------------|
 | **Backend Analyst** | Standard | `src/server/**`, `src/lib/server/**`, `server/**`, `api/**`, `app/**` server files, business-logic modules, CLI entry points | EFF-1..EFF-3, PERF-1, PERF-3, PERF-4, PERF-5, QUAL-1..QUAL-11 (incl. 5a/5b/5c), ERR-1..ERR-3, ERR-5, CONC-1..CONC-7, OBS-1..OBS-4, LOG-1..LOG-7, TYPE-1..TYPE-3, API-1..API-5, DEP-1..DEP-9, NAM-1..NAM-7, NAM-8 (log + CLI output), DEAD-1, DEAD-2, COM-1..COM-3, MONO-1, MONO-2 (if monorepo) |
