@@ -1,0 +1,9 @@
+{
+  "name": "bootstrap-project",
+  "version": "0.1.0",
+  "description": "Guides pre-implementation project bootstrap interviews and writes AGENTS.md plus focused bootstrap documentation, with implementation gated on the explicit bootstrap! command.",
+  "author": {
+    "name": "Per Wigren",
+    "email": "per@wigren.eu"
+  }
+}

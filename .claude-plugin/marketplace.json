@@ -7,6 +7,11 @@
   "description": "Hand-authored agent skills, usable in Claude Code (via this marketplace), Codex CLI, Gemini CLI, and OpenCode (via .agents/skills/).",
   "plugins": [
     {
+      "name": "bootstrap-project",
+      "source": "./plugins/bootstrap-project",
+      "description": "Prepares a brand new development project's instruction layer before code exists. Guides a bootstrap interview, writes compact AGENTS.md and focused docs under docs/, and gates actual software scaffolding until the human explicitly types bootstrap!"
+    },
+    {
       "name": "codebase-deep-analysis",
       "source": "./plugins/codebase-deep-analysis",
       "description": "Exhaustive parallel-analyst deep analysis of an entire codebase. Writes a right-sized, tier-aware report directory under docs/code-analysis/{date}/ — indexed README, per-cluster fix plans, by-analyst dumps, checklist, META rules — so a T1 hobby tool doesn't get T3 enterprise advice. Includes a gated Step 3.5 coverage/profiling pass and a Step 6 self-evolution retrospective."

@@ -11,6 +11,7 @@ The repo is simultaneously:
 
 | Skill | Summary |
 |-------|---------|
+| [`bootstrap-project`](./plugins/bootstrap-project/skills/bootstrap-project/SKILL.md) | Pre-implementation project bootstrap interview. Writes compact `AGENTS.md` plus focused `docs/bootstrap/` instructions, then gates actual code scaffolding until the human explicitly types `bootstrap!`. |
 | [`codebase-deep-analysis`](./plugins/codebase-deep-analysis/skills/codebase-deep-analysis/SKILL.md) | Exhaustive parallel-analyst deep analysis, right-sized to project tier. Produces a multi-file report under `docs/code-analysis/{date}/` for cluster-by-cluster fix sessions. Includes a gated coverage/profiling pass and a self-evolution retrospective. |
 
 ## Install
