@@ -9,6 +9,7 @@ plugin_version="$(
 )"
 
 cda_version="$(tr -d '[:space:]' < "$plugin_dir/skills/codebase-deep-analysis/VERSION")"
+iar_version="$(tr -d '[:space:]' < "$plugin_dir/skills/implement-analysis-report/VERSION")"
 
 if [[ "$cda_version" != "$plugin_version" ]]; then
   printf 'codebase-deep-analysis VERSION mismatch: plugin.json=%s VERSION=%s\n' \
@@ -16,4 +17,10 @@ if [[ "$cda_version" != "$plugin_version" ]]; then
   exit 1
 fi
 
-printf 'codebase-deep-analysis version metadata ok: %s\n' "$plugin_version"
+if [[ "$iar_version" != "$plugin_version" ]]; then
+  printf 'implement-analysis-report VERSION mismatch: plugin.json=%s VERSION=%s\n' \
+    "$plugin_version" "$iar_version" >&2
+  exit 1
+fi
+
+printf 'codebase-deep-analysis plugin and bundled skill versions ok: %s\n' "$plugin_version"
