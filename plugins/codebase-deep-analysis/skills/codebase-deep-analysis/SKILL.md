@@ -120,7 +120,7 @@ If the repo has no `.git/`, the scout falls back to `rg --files --hidden --no-ig
 
 Read the scout's **Applicability flags** block and **Project tier** block.
 
-- **Applicability pruning.** Drop analysts whose scope is absent: no web UI → skip Frontend; no DB → skip Database; no CI config → Tooling still runs (it owns BUILD/GIT even without CI) but its CI-specific items become `[-] N/A`.
+- **Applicability pruning.** Drop analysts whose scope is absent: no web UI → skip Frontend; no DB → skip Database; no styling surface → skip Styling; no CI config → Tooling still runs (it owns BUILD/GIT even without CI) but its CI-specific items become `[-] N/A`.
 - **Tier pruning.** Do not skip analysts based on tier — tier filtering happens per checklist-item inside each analyst, not at the roster level.
 
 Record every skipped analyst and the reason — the final `README.md` must state this under Run metadata.
@@ -142,6 +142,8 @@ Launch all remaining analysts **in a single message** using multiple `Agent` too
 - `{OWNED_CHECKLIST_ITEMS}` — the subset of `references/checklist.md` this agent owns, with min-tier tags copied inline (the agent should not need to read the full checklist file)
 - `{INSTRUCTION_FILES}` — list of actual top-level instruction/doc files that exist (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `docs/*.md`)
 - `{APPLICABILITY_FLAGS}` — Scout's applicability flags block (including sub-flags like `web-facing-ui: present, auth-gated`). Analysts key default N/A behaviors off these.
+
+**Styling Analyst dispatch addendum.** When dispatching the Styling Analyst (and only that analyst), append the contents of `references/styling-prepass.md` to the wrapper output before sending. The pre-pass instructs the analyst to build a system inventory across its scope before filing per-file findings — it is the differentiator vs the Frontend Analyst's per-file CSS coverage. Other analysts receive the wrapper unchanged.
 
 Hard rules the wrapper + ground rules enforce (read both before editing):
 
