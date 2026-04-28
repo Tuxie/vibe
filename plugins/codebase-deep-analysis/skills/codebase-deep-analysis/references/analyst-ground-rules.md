@@ -341,7 +341,7 @@ These thresholds are not rigid pass/fail gates — they are smell tests. A genui
 
 ### Read depth requirement
 
-For every file you analyze, you must read beyond imports and type signatures into the implementation — function bodies, event handlers, route handlers, CSS rule blocks, query builders, test assertions. Findings derived solely from file names, directory structure, or import statements are not findings — they are hypotheses that need verification by reading the code.
+For every file you analyze, you must read beyond imports and type signatures into the implementation — function bodies, event handlers, route handlers, CSS rule blocks, ARIA attribute semantics on interactive elements, query builders, test assertions. Findings derived solely from file names, directory structure, or import statements are not findings — they are hypotheses that need verification by reading the code.
 
 ---
 
