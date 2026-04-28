@@ -138,6 +138,32 @@ The orchestrator does not auto-detect harness topology. Instead, the skill assum
 
 **Concrete impact on cost discipline:** When Senior and Senior-1M collapse, the "6-10x more expensive than Senior" estimate for Senior-1M no longer applies — running an analyst at the larger context costs maybe 2-3x what a small-payload run on the same model would cost. The Path A and Path B escalation thresholds still gate when the *larger context payload* is justified; they just don't gate model selection (which is fixed by the harness). The retrospective Part A captures actual dispatch costs so future calibration can detect when collapsed-tier runs over- or under-spent.
 
+### Reasoning effort axis (orthogonal to model tier)
+
+Some harnesses expose a **reasoning-effort** control independent of model selection — Anthropic's extended-thinking budget, OpenAI's `reasoning_effort` parameter, etc. Effort is orthogonal to both model strength and context window: a Sonnet at max effort can outperform an Opus at default effort on hard problems where the bottleneck is depth-of-thinking rather than raw model capability.
+
+The skill recognises three effort levels: `default | high | max`. Every dispatch defaults to whatever the harness considers default — the skill does not actively control effort unless evidence specifically warrants the bump.
+
+**When the skill actively recommends bumping effort (closed list):**
+
+1. **Synthesis when the synthesis-Senior-1M trigger fires** (T3 + ≥10 analysts + ≥100 findings, or text ≥50k tokens). A run thick enough to need 1M context is also thick enough to benefit from extra thinking. Recommend `max` effort.
+2. **Security on a Senior-1M dispatch** (Path B Scout-direct OR Path A gradient to Senior-1M). The run already cleared the "this is hard" bar. Recommend `high` effort. `max` if Scout's recommendation reason cites cross-cutting attack surface (auth + deserialization + subprocess).
+3. **Cluster execution in `implement-analysis-report`** when the cluster has both `model-hint: senior-1m` AND `Autonomy: needs-spec` — synthesizing a fix design and writing code in one pass needs the depth. Recommend `max` effort. The cluster's `effort-hint:` frontmatter field carries the recommendation; iar honors it on dispatch.
+
+Everything else (every analyst's normal Step 3 dispatch, every Standard-tier dispatch, gradient escalations to Senior, regular cluster execution) stays at `default` effort. Don't over-specify.
+
+**Harness availability — never downgrade below requested effort.**
+
+Same resolution semantics as model tier. If the orchestrator passes `effort: max` and the harness only exposes `default`, the request is sent and the actual effort used is logged in Run metadata as `Effort resolution: max requested; harness exposes only default; ran at default`. The retrospective records this so users on effort-capped harnesses see when their analysis ran below the recommended depth. The skill never silently strips an effort recommendation.
+
+**Step 0 directive vocabulary** gains one new shape, additive to model-tier directives:
+
+- `use max-effort on <analyst-name>` — record in Run metadata as `Effort override: per user request, <analyst> ran at max effort`. User can stack with `use senior-1m on <analyst>` for combined effects.
+
+**Cluster `effort-hint:` frontmatter field** — parallel to `model-hint:`. Optional. Set by synthesis when one of the closed-list triggers above applies; omitted otherwise (omitted = `default`). Vocabulary: `default | high | max`.
+
+**Cost.** Bumping effort on a single dispatch typically costs 1.5-3x in completion tokens (more reasoning before output). Synthesis at max effort + Senior-1M payload could run ~3-4x of synthesis at default effort + Senior — still small relative to the multi-analyst parallel fan-out, and gated tightly enough that it fires rarely.
+
 **Auto-escalation paths (two; either can fire):**
 
 **Path A — gradient escalation, after a first-pass run:**
@@ -212,11 +238,11 @@ The user-facing override path stays the same (`use senior-1m on <cluster-slug>` 
 | `references/agent-roster.md` | Add Accessibility Analyst row between Styling and Database; update Frontend row (drop A11Y-1..5, drop UX-2); update Escalation section to document both Senior → Senior-1M (gradient, Path A) and Scout-direct Senior-1M (Path B); add Senior-1M to the model-tier vocabulary explanation |
 | `references/checklist.md` | Update `## A11Y` section preamble (new owner: Accessibility Analyst); update Owner column on A11Y-1..A11Y-5 (Frontend → Accessibility, with A11Y-3 three-way joint Frontend/Styling/Accessibility); update Owner on UX-2 (Frontend → Accessibility); add A11Y-6..A11Y-10 rows |
 | `references/accessibility-prepass.md` | Create new file (mirrors `styling-prepass.md`) holding the system-inventory pre-pass addendum |
-| `SKILL.md` | Step 1 — flip Scout's default tier from Junior to Standard (one-line change in the paragraph that currently says "A junior/low-cost model is preferred for this pass"); Step 2 applicability pruning — add `web-facing-ui: absent → skip Accessibility too`; Step 2 — add a one-paragraph rule for reading the Scout's `Recommend senior-1m for:` block and dispatching named analysts directly at Senior-1M; Step 3 dispatch — add Accessibility Analyst dispatch addendum (mirrors Styling Analyst pattern); Model selection section — add Senior-1M tier definition + the two escalation paths (Path A gradient, Path B Scout-direct) + Scout's Standard-tier default + the **model-resolution rule** (logical tier vs concrete model; never downgrade below requested tier when harness collapses Senior/Senior-1M); Common mistakes — add two entries: warning against ignoring the Scout's recommendation in Step 2, and warning against falling back to Standard when "Senior" is requested and only Senior-1M exists in the harness |
+| `SKILL.md` | Step 1 — flip Scout's default tier from Junior to Standard (one-line change in the paragraph that currently says "A junior/low-cost model is preferred for this pass"); Step 2 applicability pruning — add `web-facing-ui: absent → skip Accessibility too`; Step 2 — add a one-paragraph rule for reading the Scout's `Recommend senior-1m for:` block and dispatching named analysts directly at Senior-1M; Step 3 dispatch — add Accessibility Analyst dispatch addendum (mirrors Styling Analyst pattern); Model selection section — add Senior-1M tier definition + the two escalation paths (Path A gradient, Path B Scout-direct) + Scout's Standard-tier default + the **model-resolution rule** (logical tier vs concrete model; never downgrade below requested tier when harness collapses Senior/Senior-1M) + the **reasoning-effort axis** (default/high/max, orthogonal to tier, closed-list triggers, never-downgrade resolution, Step 0 directive `use max-effort on <analyst>`, cluster `effort-hint:` field); Common mistakes — add three entries: warning against ignoring the Scout's recommendation in Step 2, warning against falling back to Standard when "Senior" is requested and only Senior-1M exists in the harness, and warning against silently dropping an effort recommendation when the harness exposes only default effort |
 | `references/structure-scout-prompt.md` | Add a new optional output block: `Recommend senior-1m for: <analyst-list>` with one-line `Reason:` per analyst. Document the criteria the Scout uses (single-analyst scope >300k LOC; polyglot single-analyst scope ≥4 language families; mid-large monorepo Security on >1M LOC; synthesis pre-prediction >100k tokens). Most runs emit `Recommend senior-1m for: none`. |
-| `references/synthesis.md` | §1b health check thresholds — apply unchanged to Accessibility; §3 right-sizing — apply unchanged; §6 step 7 — add Accessibility's cluster-hint vocabulary note (mirrors Styling note); §6 step 8 (model-hint selection) — add the senior-1m upgrade rule |
+| `references/synthesis.md` | §1b health check thresholds — apply unchanged to Accessibility; §3 right-sizing — apply unchanged; §6 step 7 — add Accessibility's cluster-hint vocabulary note (mirrors Styling note); §6 step 8 (model-hint selection) — add the senior-1m upgrade rule + a parallel `effort-hint:` selection rule (omit by default; set to `max` when cluster has `model-hint: senior-1m` AND `Autonomy: needs-spec`) |
 | `references/analyst-ground-rules.md` | Update read-depth requirement to mention "ARIA attribute semantics" alongside CSS rule blocks; otherwise unchanged |
-| `references/analysis-analysis-template.md` | Run-identity block adds an optional `Senior-1M usage:` line capturing which analysts (if any) escalated and the trigger reason; existing fields unchanged |
+| `references/analysis-analysis-template.md` | Run-identity block adds two optional lines: `Senior-1M usage:` capturing which analysts (if any) escalated and the trigger reason, and `Effort overrides:` capturing any non-default effort recommendations made during the run plus harness-resolution outcomes; existing fields unchanged |
 | `VERSION` (codebase-deep-analysis) | 3.9.0 → 3.10.0 |
 | `VERSION` (implement-analysis-report) | 3.9.0 → 3.10.0 |
 | `plugin.json` | 3.9.0 → 3.10.0 |
