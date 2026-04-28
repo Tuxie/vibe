@@ -298,13 +298,16 @@ Split out from DB: a good schema can still be delivered unsafely.
 
 ## COV — Test coverage
 
-Runs in the gated Step 3.5 pass. Items that require running the coverage command emit `[?] inconclusive — execution declined` when the Step 0 preflight selected `static-only`; the static analogues still run.
+Owned by the Coverage & Profiling Analyst, dispatched in the regular Step 3 parallel fan-out. The analyst auto-detects the project's coverage command and runs it unattended; if no coverage system is detected, COV-4 fires with severity scaled to project tier. Static checks (source→test mapping, public-surface inference, config review) always run regardless of dynamic-pass success. COV-4 / COV-5 / COV-6 emit at tier-graded severity (Low / Medium / High mapping to user-stated minor / medium / major); the checklist Min tier column controls applicability (the items always apply, hence T1) while the analyst chooses the per-finding severity.
 
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
 | COV-1 | Source files with zero test coverage (static: no `*.test.*` / `*.spec.*` / `tests/` sibling pointing at them; dynamic: 0% line coverage in a reachable file) | T1 | Coverage |
 | COV-2 | Public API surface (exported functions / HTTP handlers / CLI subcommands) with no tests exercising the surface, even when the internals are tested | T2 | Coverage |
 | COV-3 | Coverage-config gaps — exclusions that hide real code (e.g., `**/*.ts` without narrowing), no coverage threshold gate in CI where one would fit the project tier | T2 | Coverage |
+| COV-4 | Missing test coverage tracking system — no `*.test.*` / `*.spec.*` runner config (`vitest.config.*`, `jest.config.*`, `pytest.ini`, `pyproject.toml [tool.pytest.*]`, `bunfig.toml`, etc.) AND no coverage-producing flag in any `package.json` script / Makefile target / justfile recipe / Taskfile target. Severity scales with tier: T1 = Low, T2 = Medium, T3 = High. T1 hobby projects can reasonably skip but absence is still a Low signal; T2 small-team projects need it to gate regressions; T3 production projects need it to ship | T1 | Coverage |
+| COV-5 | Coverage threshold not documented — coverage tracking exists but no hard/aspired threshold is named in the coverage config OR in an instruction file (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md` / `README.md`). Severity = Low at all tiers. Tooling-config-only documentation IS sufficient (e.g., `vitest.config.ts` with `coverage: { thresholds: { lines: 70 } }` counts as documented); the AGENTS.md preference applies only when nothing is documented anywhere. Fix: implementation session asks the maintainer for the threshold and writes it into the project's preferred instruction file | T1 | Coverage |
+| COV-6 | Coverage below documented or recommended threshold — current line coverage is below either (a) the documented threshold from coverage config / instruction file, or (b) the derived recommended floor `max(tier_floor, current − 5pp)` where `tier_floor = 50% / 65% / 80%` for T1 / T2 / T3. Line metric only — branch / function / statement get noisy. Severity scales with tier: T1 = Low, T2 = Medium, T3 = High | T1 | Coverage |
 
 ## PROF — Profiling / benchmarking
 
