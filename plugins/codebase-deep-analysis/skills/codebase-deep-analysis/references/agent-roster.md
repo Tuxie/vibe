@@ -92,6 +92,11 @@ The Step 0 confirmation prompt accepts a free-text directive `use senior-1m on <
 
 - `Tier: <tier>` — the tier the analyst actually ran on (`junior` | `standard` | `senior` | `senior-1m`).
 - `Tier path: <path>` — `default` | `gradient: standard→senior` | `gradient: senior→senior-1m` | `scout-direct: senior-1m` | `user-directive`.
+- `Effort: <effort>` — the effort level the analyst actually ran at (`default` | `high` | `max`).
+- `Effort path: <path>` — `default` | `closed-list-trigger: <name>` | `user-directive`.
+- Resolution warnings when the harness couldn't honor the requested tier or effort (e.g., `Tier resolution: Senior unavailable in harness; using <highest-available-tier> instead`; `Effort resolution: max requested; harness exposes only default; ran at default`).
+
+The retrospective template (`analysis-analysis-template.md`) summarises these per-analyst records into the run-level `Senior-1M usage:` and `Effort overrides:` lines.
 
 ### Reasoning effort axis (orthogonal to tier)
 
