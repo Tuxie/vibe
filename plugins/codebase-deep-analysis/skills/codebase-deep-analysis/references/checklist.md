@@ -217,6 +217,24 @@ Covers how markup, styles, and framework code are written — orthogonal to `A11
 | FE-22 | Missing component base classes — repeated UI elements (buttons, inputs, cards, menus, modals, badges) styled individually instead of sharing a common base class with variant modifiers. Changing one instance's style doesn't propagate to others | T1 | Frontend |
 | FE-23 | Inconsistent CSS class naming — no naming convention (BEM, utility-first, SMACSS, etc.) or convention exists but is violated; class names mix casing styles (`btn-primary` vs `submitButton` vs `card_header`) within the same project | T1 | Frontend |
 
+## STYLE — Styling system
+
+Sole owner: Styling Analyst. These IDs catch cross-file CSS pathologies that the Frontend Analyst's per-file lens misses by design (z-index wars, token fragmentation, cascade brittleness). The Styling Analyst's system-inventory pre-pass (see `styling-prepass.md`) is mandatory before filing STYLE-1, STYLE-4, STYLE-5, STYLE-6, or STYLE-7 findings. Run only when the Scout emits `styling-surface: present`.
+
+| ID | Item | Min tier | Owner |
+|----|------|----------|-------|
+| STYLE-1 | z-index war — multiple z-index values without a documented stacking system; magic numbers (`9999`, `99999`) used to win cascade. Look for the same z-index repeated across unrelated components, escalation chains (`9`, `99`, `999`), or `position` interaction bugs (e.g., `transform` / `filter` / `will-change` creating a stacking context that traps `z-index`) | T1 | Styling |
+| STYLE-2 | Specificity escalation — `.foo.foo`, descendant chains, or `!important` ladders used to override prior rules instead of refactoring. Includes attribute-selector duplication (`[data-x][data-x]`) and ID-then-class chains | T1 | Styling |
+| STYLE-3 | Spaghetti inheritance — child rule depends on 3+ ancestor selectors' computed values; refactor-fragile. Look for selectors like `.a .b .c .d` where the depth carries semantic load (not just specificity) | T2 | Styling |
+| STYLE-4 | Design-token fragmentation — same color/size/spacing magic value (`#3b82f6`, `12px`, `24px`) repeated across files when a token system exists OR should. Threshold: ≥3 occurrences across ≥2 files for a value that's not 0, 1, auto, or 100% | T1 | Styling |
+| STYLE-5 | Custom-property duplication — `--brand-blue` (or equivalent) defined in 2+ places with drift (different values across the duplicates) | T1 | Styling |
+| STYLE-6 | Breakpoint inconsistency — mixed media-query vocabularies (`768px` here, `48em` there, `md` in Tailwind classes elsewhere) without a unified breakpoint constant set | T2 | Styling |
+| STYLE-7 | Dead CSS — selectors with no matching markup; orphaned classes; unused `@keyframes`. Static check: grep markup for class names referenced in CSS and vice versa. Mark Plausible if dynamic class composition is detected (template literals, `clsx`, `classnames`, `cva`, runtime concat) — analyst cannot know runtime usage | T1 | Styling |
+| STYLE-8 | Tailwind config bloat — unused `theme.extend` keys (no usage in any class string), custom utilities duplicating built-ins, arbitrary values (`w-[127px]`) where a token fits. Only when Tailwind is in use | T1 | Styling |
+| STYLE-9 | CSS-in-JS recreation — style objects, `styled.X` template literals with closure-captured props, or `css\`…\`` instances built inside the render path each render without memoization. Look for inline literals inside JSX, hooks, or render functions | T2 | Styling |
+| STYLE-10 | Shorthand/longhand conflict — `margin: 0` followed by `margin-top: 8px` in the same rule, or longhand silently reset by a later shorthand in cascade order | T1 | Styling |
+| STYLE-11 | Cascade ordering brittleness — final rendered look depends on stylesheet load order; reordering imports or build-output concatenation breaks UI. Symptom: a `@layer`-less mix of base/components/utilities + reliance on a specific import sequence in `main.css` / `app.tsx` | T2 | Styling |
+
 ## UX — Frontend UX (non-A11y)
 
 | ID | Item | Min tier | Owner |
