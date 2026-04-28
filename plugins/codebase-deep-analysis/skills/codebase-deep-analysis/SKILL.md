@@ -64,41 +64,55 @@ digraph analysis_flow {
 
 ## Step 0 — Preflight
 
-**Design rule: Step 0 is the only step that may prompt the user.** Every decision the run will need (proceed, dynamic-execution mode, command overrides) is captured here in a single consolidated prompt so the rest of the run — Steps 1 through 6 — can execute unattended. A user should be able to kick off this skill before going to bed and wake up to a finished report.
+**Design rule: Step 0 is the only step that may prompt the user.** A single confirmation gate at the start lets the user proceed, abort, or issue free-text instructions/questions. After that, the rest of the run — Steps 1 through 6 — executes unattended. A user should be able to kick off this skill before going to bed and wake up to a finished report.
 
 1. **Capture the skill's own revision up-front** (see Step 6 for the fallback chain). Keep the value in the orchestrator's working memory so it lands in `analysis-analysis.md` even if the skill repo becomes unavailable partway through.
 
 2. **Load deferred tools.** `AskUserQuestion`, `TaskCreate`, and `TaskUpdate` may be deferred tools in your harness (visible by name in a `<system-reminder>` but not callable until their schemas load). If a tool call fails with `InputValidationError`, run `ToolSearch` with `select:AskUserQuestion,TaskCreate,TaskUpdate` first, then retry. This is cheap and saves a round-trip at the consent prompt.
 
-3. **Detect coverage and bench commands now** (no Scout required for this). Read, in order of preference: `package.json` scripts (keys matching `cov`, `coverage`, `bench`, `benchmark`, `profile`), top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml` `[tool.*.scripts]` equivalents. Record the most-specific match per category. Possible outcomes per category:
+3. **Detect the coverage command now** (no Scout required for this). Read, in order of preference: `package.json` scripts (keys matching `cov`, `coverage`), top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml` `[tool.*.scripts]` equivalents. Record the most-specific match. Outcomes:
    - `auto-detected:<cmd>` — exactly one plausible command found (e.g., `bun run coverage:check`).
-   - `auto-detected:<cmd> (+ N alternatives)` — multiple plausible commands found; pick the most-specific but list the alternatives in the prompt.
+   - `auto-detected:<cmd> (+ N alternatives)` — multiple candidates; pick the most-specific.
    - `none-detected` — no candidate.
 
-4. **Single consolidated consent prompt.** Issue **one** `AskUserQuestion` call that captures every decision the run will need. The prompt must include:
+   Bench command detection is no longer performed in this version. PROF-1 (missing bench target where PERF findings exist) and PROF-2 (stale bench artifacts) remain as static-only checks owned by the Coverage & Profiling analyst.
+
+4. **Confirmation prompt with free-text slot.** Issue **one** `AskUserQuestion` call. The prompt body includes:
 
    - The token warning: *"This run dispatches several analyst subagents in parallel and will consume a large number of tokens. It is best run when weekly quota has spare headroom."*
-   - The detected coverage command and bench command (or `none-detected` for either/both).
-   - A choice of execution mode:
-     - `Run both dynamic passes (coverage + bench)`
-     - `Run coverage only`
-     - `Run bench only`
-     - `Static-only — no project commands run`
-     - `Let me correct the detected commands first`
-     - `Abort`
-   - A note: *"After you answer this prompt, the rest of the run will proceed unattended through Steps 1 – 6. No further user interaction is required."*
+   - The detected coverage command (or `none-detected — COV-4 will be filed`) and a one-line note: *"Coverage will run automatically if a tracking system is detected. To skip, type that into the instructions slot."*
+   - Three options:
+     - **Proceed** — start the run as detected.
+     - **Abort** — exit, no work done.
+     - **Instructions / questions** — free-text slot. The user types directives or questions; the orchestrator interprets and applies, then re-prompts proceed / abort.
+   - A note: *"After you proceed, the rest of the run will execute unattended through Steps 1 – 6. No further user interaction is required."*
 
-   If the user picks `Let me correct the detected commands first`, issue a **second** `AskUserQuestion` with free-text slots for each command, then re-issue the primary prompt with the user-corrected values (provenance `user-corrected:<cmd>`) so the user confirms the mode choice with the corrected commands in view. Maximum two round-trips — after that, accept whatever the user last picked.
+   **Free-text directive protocol:**
+
+   When the user picks the free-text option:
+   1. Capture the user's text verbatim.
+   2. Classify as **question** (interrogative form, no imperative directive), **directive** (imperative form), or **mixed**.
+   3. For questions: answer concisely (≤200 words) using only information already in scope (codebase map will be available after Scout, but at Step 0 use only the manifest, package.json, and detected commands). Re-prompt: proceed / abort / more.
+   4. For directives: parse against the closed directive vocabulary below. Record the directive in `RUN_DIRECTIVES` (orchestrator working memory). Re-prompt: proceed / abort.
+   5. Round-trip cap = 2. After two free-text iterations, the third re-prompt offers only proceed / abort (no more free-text slot). Prevents runaway loops.
+
+   **Closed directive vocabulary (v3.9):**
+   - `skip <analyst-name>` — drop that analyst from the Step 3 dispatch list. Recorded in Run metadata as `Analyst override: skipped <analyst> per user request`.
+   - `use senior on <analyst-name>` — model-tier override; recorded in Run metadata as `Analyst override: per user request, <analyst> ran on senior`.
+   - `ignore <path-or-glob>` — exclude from all analysts' scope (passed as an additional negative glob in `{SCOPE_GLOBS}`). Recorded in Run metadata as `Scope override: ignoring <glob> per user request`.
+   - `set tier T<N>` (where N ∈ {1, 2, 3}) — override Scout's tier classification. Recorded in Run metadata as `Tier override: set to T<N> per user request, Scout's classification ignored`.
+
+   Anything outside this vocabulary: orchestrator declines and re-prompts (*"That directive isn't supported in this run; proceed / abort / try a question?"*). The orchestrator does not invent directive shapes.
 
    If the user does not answer within a reasonable window, or picks `Abort`, emit a short status message and stop. Never block indefinitely.
 
 5. **Record the preflight decision** in the orchestrator's working memory for the rest of the run:
    ```
-   EXECUTION_MODE       = both | coverage-only | bench-only | static-only
-   COVERAGE_CMD         = auto-detected:<cmd> | user-corrected:<cmd> | none-detected
-   BENCH_CMD            = auto-detected:<cmd> | user-corrected:<cmd> | none-detected
+   COVERAGE_CMD     = auto-detected:<cmd> | none-detected
+   RUN_DIRECTIVES   = list of accepted directives (may be empty)
    ```
-   Step 3.5 consumes these values non-interactively.
+
+   Step 3 dispatch consumes `COVERAGE_CMD` (passed as `{DETECTED_COVERAGE_CMD}` to the Coverage & Profiling analyst) and applies `RUN_DIRECTIVES` to the dispatch list / scope globs / tier as appropriate.
 
 6. **Check git state, but do not gate on it.** Run `git status --porcelain`. If output is non-empty, note in Run metadata that any `file:line` references in the resulting report may shift if the tree is committed or reverted afterward. Do **not** prompt the user — a dirty tree is not a safety issue and the user has already authorized the run.
 
@@ -159,22 +173,15 @@ Hard rules the wrapper + ground rules enforce (read both before editing):
 
 This step consumes the preflight decision from Step 0 — no prompting happens here. If a run started unattended, it stays unattended.
 
-Map Step 0's `EXECUTION_MODE` to analyst dispatch:
+This step consumes `COVERAGE_CMD` from the Step 0 preflight — no prompting happens here. Coverage runs automatically if a command was detected; if `none-detected`, the analyst runs its full static pass only.
 
-| `EXECUTION_MODE` | Dispatch | `{EXECUTION_CONSENT}` |
-|------------------|----------|------------------------|
-| `both` | Dispatch Coverage & Profiling with both commands live | `granted` |
-| `coverage-only` | Dispatch, but pass `BENCH_CMD = none-detected` so bench pass is skipped | `granted` |
-| `bench-only` | Dispatch, but pass `COVERAGE_CMD = none-detected` so coverage pass is skipped | `granted` |
-| `static-only` | Dispatch with both commands passed as captured, but `{EXECUTION_CONSENT} = declined` | `declined` |
+1. **Dispatch the Coverage & Profiling analyst** with the prompt in `references/coverage-profiling-prompt.md`. Substitutions: `{DETECTED_COVERAGE_CMD}` comes from the Step 0 preflight capture. The analyst is the single choke point for runtime invocation; the orchestrator does not run anything itself.
 
-1. **Dispatch the Coverage & Profiling analyst** with the prompt in `references/coverage-profiling-prompt.md`. Substitutions: `{EXECUTION_CONSENT}`, `{DETECTED_COVERAGE_CMD}`, `{DETECTED_BENCH_CMD}` all come from the Step 0 preflight capture. The analyst is the single choke point for runtime invocation; the orchestrator does not run anything itself.
-
-   **Timeout requirement.** When the Coverage & Profiling analyst invokes Bash to run `{DETECTED_COVERAGE_CMD}` or `{DETECTED_BENCH_CMD}`, it must pass `timeout: 900000` (15 minutes) explicitly. Real-world coverage suites routinely run 5–12 minutes; the harness's default 2-minute Bash timeout will kill them mid-run. The orchestrator surfaces this requirement in the analyst's prompt (see `references/coverage-profiling-prompt.md`). If the user's preflight included a longer per-gate timeout override, use that; otherwise 900000 is the floor for this analyst.
+   **Timeout requirement.** When the Coverage & Profiling analyst invokes Bash to run `{DETECTED_COVERAGE_CMD}`, it must pass `timeout: 900000` (15 minutes) explicitly. Real-world coverage suites routinely run 5–12 minutes; the harness's default 2-minute Bash timeout will kill them mid-run. The orchestrator surfaces this requirement in the analyst's prompt (see `references/coverage-profiling-prompt.md`). If the user's preflight included a longer per-gate timeout override, use that; otherwise 900000 is the floor for this analyst.
 
 2. **Merge output into synthesis.** The analyst's findings and checklist lines flow through Step 4 the same way as every other analyst — the only novelty is the optional dynamic-pass Confidence upgrade from Plausible to Verified on covered items.
 
-If the user chose `Abort` at Step 0, this step is never reached. There is no separate "skip" mode in v3.1+ — `static-only` is the zero-execution path, and it still dispatches the analyst (which runs its full static pass). Record `Coverage & Profiling: static-only` or the relevant mode in Run metadata.
+If the user chose `Abort` at Step 0, this step is never reached. Record `Coverage & Profiling: static-only` in Run metadata when `COVERAGE_CMD = none-detected`.
 
 ## Step 4 — Synthesis
 
@@ -288,8 +295,8 @@ If the user explicitly overrides model tiers for this run, honor the override an
 - **Postponing Part A.** If the orchestrator defers Part A to "write it later", the useful details are already gone. Part A is a Step 6 deliverable, not a follow-up.
 - **Trusting Scout's applicability or tier flags blindly.** If an analyst finds evidence that an applicability flag was wrong or the tier classification mismatches reality, it says so in its Summary; synthesis re-dispatches or re-tiers.
 - **Cluster-hint sprawl.** If every finding has its own unique cluster hint, clustering collapses into one-finding-per-file and the multi-file report is useless. Keep hints to a small controlled vocabulary per run.
-- **Prompting the user anywhere outside Step 0.** Step 0 captures every decision the run needs (proceed / abort, execution mode, command overrides) in a single consolidated prompt so the run can proceed unattended. Steps 1 – 6 must not call `AskUserQuestion`. If a mid-run ambiguity arises, either resolve it with a reasonable default and log the choice in Run metadata, or fail the affected finding to `[?] inconclusive — would have required user input, deferred by unattended-run contract`.
-- **Asking a second consent before Step 3.5.** Step 3.5 is non-interactive in v3.1+. The dynamic-execution authorization lives in the Step 0 `EXECUTION_MODE` value. If you find yourself wanting to re-ask, stop — the user explicitly designed this skill to run overnight.
+- **Prompting the user anywhere outside Step 0.** Step 0 captures every decision the run needs (proceed / abort, directives) in a single confirmation gate so the run can proceed unattended. Steps 1 – 6 must not call `AskUserQuestion`. If a mid-run ambiguity arises, either resolve it with a reasonable default and log the choice in Run metadata, or fail the affected finding to `[?] inconclusive — would have required user input, deferred by unattended-run contract`.
+- **Asking a second consent before Step 3.5.** Step 3.5 is non-interactive. Coverage authorization is implicit in the `Proceed` answer at Step 0. If you find yourself wanting to re-ask, stop — the user explicitly designed this skill to run overnight.
 - **Auto-resolving `Depends-on:` findings when the upstream cluster merges.** The edge is a prompt to check, not a conclusion. See `synthesis.md` §11.
 - **Silent scope expansion during fix work.** When a cluster's fix must touch adjacent files to pass a verification gate, document every extra file under an `Incidental fixes` section in the commit message. See `synthesis.md` §12.
 - **Quoting secrets.** Describe presence, never contents.
