@@ -45,7 +45,8 @@ Skill source: {repo slug or URL the skill was loaded from, e.g., "tuxie/vibe @ p
 Report directory: docs/code-analysis/{stem}/   (path-shape only; no project-specific segments)
 Analysts dispatched: {list}
 Analysts skipped: {list with reason}
-Step 0 execution mode: {both | coverage-only | bench-only | static-only}   (v3.1+: captured at single preflight prompt; Step 3.5 no longer prompts)
+Step 0 confirmation: {Proceed | Abort | Free-text directives applied: <list>}   (v3.9+: single confirmation prompt with optional directive slot; Coverage & Profiling dispatches in Step 3 with no separate consent)
+Coverage command: {auto-detected:<cmd> | none-detected}   (v3.9+: bench command detection dropped)
 Total wall time, approximate: {N minutes}
 Total output tokens, approximate: {sum across analysts}
 ```
@@ -101,9 +102,9 @@ For each applicability flag the Scout set (`backend`, `frontend`, `database`, `t
 
 If the Scout recommended a pre-release checklist, was the recommendation correct? If the Scout did not recommend one, should it have?
 
-### Step 3.5 reality check
+### Coverage & Profiling Analyst reality check
 
-(Skip this subsection if Step 3.5 was declined or skipped — note "not run" and move on.)
+(Skip this subsection if `COVERAGE_CMD` was `none-detected` — note "no coverage system; COV-4 filed" and move on.)
 
 - Did the detected coverage/bench commands match the right targets?
 - Did the dynamic pass produce findings the static pass missed? If not, the gate paid no dividend this run and the v-next author should think about whether to keep the dynamic pass at all.

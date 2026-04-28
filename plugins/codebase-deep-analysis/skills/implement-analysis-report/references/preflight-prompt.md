@@ -145,7 +145,7 @@ Steps 1–5 read from this object exclusively. No re-detection. No re-parsing.
 
 ## Timeouts
 
-If the user does not respond to the primary prompt, exit cleanly with a message: *"No preflight response; exiting without changes."* Do not proceed with defaults — unlike cda Step 3.5's "default to static-only", here the user has not even authorized the run.
+If the user does not respond to the primary prompt, exit cleanly with a message: *"No preflight response; exiting without changes."* Do not proceed with defaults — unlike cda's Step 0 confirmation prompt (which has a sane "proceed" default to support overnight runs), here the user has not even authorized the run.
 
 ## Common mistakes
 

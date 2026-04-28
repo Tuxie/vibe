@@ -36,7 +36,7 @@ docs/code-analysis/{YYYY-MM-DD | YYYY-MM-DD-HHMMSS}/
 │   ├── security.md
 │   ├── tooling.md
 │   ├── docs.md
-│   └── coverage-profiling.md    # Only if Step 3.5 ran (static or dynamic); otherwise omitted
+│   └── coverage-profiling.md    # Always present in v3.9+ (the Coverage & Profiling Analyst dispatches in Step 3 like every other analyst); content varies by whether the dynamic coverage run succeeded
 ├── checklist.md                 # Full checklist, defects visible
 ├── meta.md                      # META-1 draft agent-instruction rules (or "none")
 ├── not-in-scope.md              # What was intentionally skipped, with reasons
