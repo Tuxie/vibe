@@ -11,7 +11,7 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 
 **The only writes permitted are to `docs/code-analysis/`** (the report directory and a scratch subdirectory). No code modifications. Read-only shell commands only, with **one carefully-bounded exception**: the Coverage & Profiling Analyst may invoke the project's own auto-detected coverage command — once, with a 15-minute timeout. Bench commands are no longer executed (PROF-1 / PROF-2 stay as static checks). Never run builds, migrations, installs, or any other subcommand that mutates state.
 
-**All user interaction happens in Step 0.** Preflight captures every decision the run will need (proceed / abort, dynamic-execution mode, command overrides) in a single consolidated prompt so the rest of the run can proceed unattended — suitable for overnight execution. Steps 1 – 6 never prompt the user.
+**All user interaction happens in Step 0.** Preflight captures every decision the run will need (proceed / abort, optional free-text directives) in a single confirmation prompt so the rest of the run can proceed unattended — suitable for overnight execution. Steps 1 – 6 never prompt the user.
 
 **Two core principles, equally important:**
 
