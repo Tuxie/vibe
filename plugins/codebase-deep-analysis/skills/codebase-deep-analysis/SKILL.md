@@ -143,7 +143,7 @@ Launch all remaining analysts **in a single message** using multiple `Agent` too
 - `{INSTRUCTION_FILES}` — list of actual top-level instruction/doc files that exist (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `docs/*.md`)
 - `{APPLICABILITY_FLAGS}` — Scout's applicability flags block (including sub-flags like `web-facing-ui: present, auth-gated`). Analysts key default N/A behaviors off these.
 
-**Styling Analyst dispatch addendum.** When dispatching the Styling Analyst (and only that analyst), append the contents of `references/styling-prepass.md` to the wrapper output before sending. The pre-pass instructs the analyst to build a system inventory across its scope before filing per-file findings — it is the differentiator vs the Frontend Analyst's per-file CSS coverage. Other analysts receive the wrapper unchanged.
+**Styling Analyst dispatch addendum.** When dispatching the Styling Analyst (and only that analyst), append the **fenced inner block** of `references/styling-prepass.md` to the wrapper output before sending — the file's leading meta-paragraph and outer fence markers are dispatcher-only instructions and must NOT be sent to the analyst. The pre-pass instructs the analyst to build a system inventory across its scope before filing per-file findings — it is the differentiator vs the Frontend Analyst's per-file CSS coverage. Other analysts receive the wrapper unchanged.
 
 Hard rules the wrapper + ground rules enforce (read both before editing):
 
