@@ -42,7 +42,7 @@ The Structure Scout assigns the repo one tier, with evidence. Analysts filter ow
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
 | PERF-1 | Missing caching / memoization where recomputation is the bottleneck | T2 | Backend, Frontend |
-| PERF-2 | Bundle size / cold start — large imports, no code-splitting, duplicate deps in bundle | T2 | Frontend |
+| PERF-2 | Bundle size / cold start — large imports, no code-splitting, duplicate deps in bundle. Joint ownership: Styling co-owns the CSS-bundle slice (unused utility classes shipping, duplicate keyframes, oversized stylesheet imports); Frontend keeps the JS-bundle slice. | T2 | Frontend, Styling |
 | PERF-3 | Memory leaks / unbounded collections (uncleaned listeners, caches without eviction, goroutine/worker leaks, stale refs) | T1 | Backend, Frontend |
 | PERF-4 | Missing timeouts on network / subprocess / external I/O | T1 | Backend |
 | PERF-5 | Missing cancellation / AbortSignal / context propagation through long-running work | T2 | Backend, Frontend |
@@ -122,7 +122,7 @@ The Structure Scout assigns the repo one tier, with evidence. Analysts filter ow
 |----|------|----------|-------|
 | A11Y-1 | Interactive element without accessible name (button/link without text or `aria-label`) | T1 | Frontend |
 | A11Y-2 | Missing keyboard operability (click-only handler, modal without focus trap) | T1 | Frontend |
-| A11Y-3 | Color-only signal, or contrast below WCAG AA | T2 | Frontend |
+| A11Y-3 | Color-only signal, or contrast below WCAG AA | T2 | Frontend, Styling |
 | A11Y-4 | Missing or wrong landmark / heading structure (multiple `<h1>`, missing `<main>`) | T2 | Frontend |
 | A11Y-5 | Missing `alt` on meaningful images; decorative images without `alt=""` | T1 | Frontend |
 
@@ -193,14 +193,14 @@ Covers how markup, styles, and framework code are written — orthogonal to `A11
 
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
-| FE-1 | Inline `style="..."` or `!important` used to force cascade where a class / utility / scoped-CSS rule fits | T1 | Frontend |
+| FE-1 | Inline `style="..."` or `!important` used to force cascade where a class / utility / scoped-CSS rule fits | T1 | Frontend, Styling |
 | FE-2 | Layout via HTML hacks — `<br>` / `&nbsp;` for spacing, `<table>` for non-tabular layout, spacer divs — where CSS (flex / grid / `gap`) fits | T1 | Frontend |
 | FE-3 | Inline event handlers in HTML (`onclick=`, `onsubmit=`) mixed with framework-managed handlers in the same codebase | T1 | Frontend |
 | FE-4 | Non-semantic HTML — `<div>` / `<span>` used as a button / link / heading / list where the correct element exists | T1 | Frontend |
 | FE-5 | Raw DOM manipulation (`document.querySelector`, `.innerHTML`, manual `addEventListener`) inside framework components where the framework's API fits | T1 | Frontend |
-| FE-6 | Mixed styling systems without a documented split — two or more of Tailwind, CSS Modules, styled-components / Emotion, plain global CSS, inline styles — all carrying real styling load | T2 | Frontend |
-| FE-7 | Deep CSS nesting / specificity wars (>3 levels, or chains like `div.container > ul > li > a.active`) where a flat class would fit | T1 | Frontend |
-| FE-8 | Global-CSS leaks in a project that otherwise scopes styles (unscoped selectors in a CSS-Modules / Svelte-scoped / Vue-scoped project) | T1 | Frontend |
+| FE-6 | Mixed styling systems without a documented split — two or more of Tailwind, CSS Modules, styled-components / Emotion, plain global CSS, inline styles — all carrying real styling load | T2 | Frontend, Styling |
+| FE-7 | Deep CSS nesting / specificity wars (>3 levels, or chains like `div.container > ul > li > a.active`) where a flat class would fit | T1 | Frontend, Styling |
+| FE-8 | Global-CSS leaks in a project that otherwise scopes styles (unscoped selectors in a CSS-Modules / Svelte-scoped / Vue-scoped project) | T1 | Frontend, Styling |
 | FE-9 | Overlapping UI component libraries (MUI + Bootstrap + Chakra; partial shadcn adoption alongside a second design system) | T2 | Frontend |
 | FE-10 | Overlapping state libraries — more than one of Redux / Zustand / Jotai / MobX / Pinia / TanStack-Query-as-store / framework context carrying real state for the same domain | T2 | Frontend |
 | FE-11 | Overlapping HTTP clients (`fetch` + `axios` + `ky` + `got`) in one app without a documented split of responsibilities | T1 | Frontend |
@@ -213,9 +213,9 @@ Covers how markup, styles, and framework code are written — orthogonal to `A11
 | FE-18 | Forms without bound `<label>`s, missing `name`/`autocomplete`/`inputmode`/`type`, or SPA submit handlers missing `preventDefault` so the page reloads | T1 | Frontend |
 | FE-19 | Component-scoped subscription leaks — `addEventListener`, `ResizeObserver`, `IntersectionObserver`, `setInterval` / `setTimeout`, media-query listeners — not cleaned up on unmount / teardown | T1 | Frontend |
 | FE-20 | Client bundle pulls server-only / Node-only APIs (tree-shake failed, or a `node:` import shipped to browser) causing either runtime errors or silently bloating the bundle with shims | T2 | Frontend |
-| FE-21 | Duplicated CSS property blocks — same set of properties/values repeated across multiple selectors instead of extracted to a shared class, mixin, or CSS custom-property group. Look for ≥3 selectors sharing ≥3 identical declarations | T1 | Frontend |
-| FE-22 | Missing component base classes — repeated UI elements (buttons, inputs, cards, menus, modals, badges) styled individually instead of sharing a common base class with variant modifiers. Changing one instance's style doesn't propagate to others | T1 | Frontend |
-| FE-23 | Inconsistent CSS class naming — no naming convention (BEM, utility-first, SMACSS, etc.) or convention exists but is violated; class names mix casing styles (`btn-primary` vs `submitButton` vs `card_header`) within the same project | T1 | Frontend |
+| FE-21 | Duplicated CSS property blocks — same set of properties/values repeated across multiple selectors instead of extracted to a shared class, mixin, or CSS custom-property group. Look for ≥3 selectors sharing ≥3 identical declarations | T1 | Frontend, Styling |
+| FE-22 | Missing component base classes — repeated UI elements (buttons, inputs, cards, menus, modals, badges) styled individually instead of sharing a common base class with variant modifiers. Changing one instance's style doesn't propagate to others | T1 | Frontend, Styling |
+| FE-23 | Inconsistent CSS class naming — no naming convention (BEM, utility-first, SMACSS, etc.) or convention exists but is violated; class names mix casing styles (`btn-primary` vs `submitButton` vs `card_header`) within the same project | T1 | Frontend, Styling |
 
 ## STYLE — Styling system
 
@@ -239,7 +239,7 @@ Sole owner: Styling Analyst. These IDs catch cross-file CSS pathologies that the
 
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
-| UX-1 | Inconsistent or confusing UI look & feel (spacing, typography, iconography, affordances) | T2 | Frontend |
+| UX-1 | Inconsistent or confusing UI look & feel (spacing, typography, iconography, affordances) | T2 | Frontend, Styling |
 | UX-2 | Inconsistent keyboard shortcuts or mouse interactions | T2 | Frontend |
 
 ## DB — Database schema
