@@ -9,7 +9,7 @@ description: Use when asked to perform an exhaustive deep analysis of an entire 
 
 Dispatch parallel Explore subagents to analyze every **applicable** layer of the codebase — backend, frontend, tests, tooling, database, documentation, security — then synthesize findings into a **directory** of markdown files that a brainstorming session can consume one cluster at a time.
 
-**The only writes permitted are to `docs/code-analysis/`** (the report directory and a scratch subdirectory). No code modifications. Read-only shell commands only, with **one carefully-bounded exception**: Step 3.5 may invoke the project's own existing coverage and bench commands — but only if the user authorized dynamic execution at Step 0's single consolidated consent prompt. Never run builds, migrations, installs, or any other subcommand that mutates state.
+**The only writes permitted are to `docs/code-analysis/`** (the report directory and a scratch subdirectory). No code modifications. Read-only shell commands only, with **one carefully-bounded exception**: the Coverage & Profiling Analyst may invoke the project's own auto-detected coverage command — once, with a 15-minute timeout. Bench commands are no longer executed (PROF-1 / PROF-2 stay as static checks). Never run builds, migrations, installs, or any other subcommand that mutates state.
 
 **All user interaction happens in Step 0.** Preflight captures every decision the run will need (proceed / abort, dynamic-execution mode, command overrides) in a single consolidated prompt so the rest of the run can proceed unattended — suitable for overnight execution. Steps 1 – 6 never prompt the user.
 
@@ -23,13 +23,13 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 | File | Purpose |
 |------|---------|
 | `references/structure-scout-prompt.md` | Prompt for the mapping pass, including **project tier**, two-signal docs-drift flag, `ui-auth-gated` sub-flag, and pre-release-surface detection |
-| `references/agent-roster.md` | Which analysts exist, what they own, when they run (including the gated Coverage & Profiling analyst); `scripts/` ownership rules |
+| `references/agent-roster.md` | Which analysts exist, what they own, when they run; `scripts/` ownership rules; the Coverage & Profiling Analyst execution-exception note |
 | `references/analyst-ground-rules.md` | Ground rules every analyst reads at dispatch time: forbidden reads/commands, finding format, checklist line shapes, self-check rubric, tier-severity anchors, invocation verification. Read from the skill's `references/` at dispatch — not pasted into the prompt. |
 | `references/agent-prompt-template.md` | Minimal per-agent wrapper (≤40 lines): scope, tier, owned-checklist, output contract. References `analyst-ground-rules.md` by path. |
 | `references/checklist.md` | Stable checklist IDs with min-tier tags, agent ownership, and the full set of checklist-line shapes |
 | `references/synthesis.md` | Dedup, right-sizing filter, hybrid clustering (incl. singleton floor, same-file split/merge, mechanical sanity check, fuzz attribution), severity resolution, Executive Summary, Depends-on handling, scope-expansion rules |
 | `references/report-template.md` | Three rendering modes (single-file / compact multi-file / full multi-file) with cluster frontmatter schema (`Status:`, `Autonomy:`, `Resolved-in:`, `Depends-on:`, `informally-unblocks:`, `Pre-conditions:`, `attribution:`) |
-| `references/coverage-profiling-prompt.md` | Prompt for the Step 3.5 gated analyst; consumes the Step 0 consolidated preflight decision (no mid-run prompts) |
+| `references/coverage-profiling-prompt.md` | Prompt for the Coverage & Profiling Analyst (dispatched in Step 3 alongside the other analysts); contains the only execution exception in the skill, the threshold-derivation rule for COV-6, and the COV-4 / COV-5 emission logic |
 | `references/analysis-analysis-template.md` | Two-part retrospective template (runner + fix coordinator) written **to the next skill version's author** — primary RED-phase input for v-next |
 | `scripts/render-status.sh` | Rebuilds the cluster-index block from each cluster's `Status:` / `Autonomy:` fields. Copied into the report directory at Step 5 so the fix coordinator can run it without the skill repo on disk. |
 | `scripts/validate-frontmatter.sh` | Validates cluster frontmatter before the index is regenerated; `render-status.sh` calls it automatically when present. |
@@ -43,8 +43,7 @@ digraph analysis_flow {
     "Step 0 — Preflight" [shape=box];
     "Step 1 — Structure Scout (maps + tiers + drift)" [shape=box];
     "Step 2 — Scope resolution (prune by applicability + tier)" [shape=box];
-    "Step 3 — Dispatch analysts (parallel, read-only)" [shape=box];
-    "Step 3.5 — Coverage & Profiling (gated)" [shape=box];
+    "Step 3 — Dispatch analysts (parallel, incl. Coverage & Profiling)" [shape=box];
     "Step 4 — Synthesis: dedup + right-size + cluster" [shape=box];
     "Step 5 — Render report directory" [shape=box];
     "Step 6 — Retrospective (analysis-analysis.md, Part A)" [shape=box];
@@ -53,9 +52,8 @@ digraph analysis_flow {
     "Start" -> "Step 0 — Preflight";
     "Step 0 — Preflight" -> "Step 1 — Structure Scout (maps + tiers + drift)";
     "Step 1 — Structure Scout (maps + tiers + drift)" -> "Step 2 — Scope resolution (prune by applicability + tier)";
-    "Step 2 — Scope resolution (prune by applicability + tier)" -> "Step 3 — Dispatch analysts (parallel, read-only)";
-    "Step 3 — Dispatch analysts (parallel, read-only)" -> "Step 3.5 — Coverage & Profiling (gated)";
-    "Step 3.5 — Coverage & Profiling (gated)" -> "Step 4 — Synthesis: dedup + right-size + cluster";
+    "Step 2 — Scope resolution (prune by applicability + tier)" -> "Step 3 — Dispatch analysts (parallel, incl. Coverage & Profiling)";
+    "Step 3 — Dispatch analysts (parallel, incl. Coverage & Profiling)" -> "Step 4 — Synthesis: dedup + right-size + cluster";
     "Step 4 — Synthesis: dedup + right-size + cluster" -> "Step 5 — Render report directory";
     "Step 5 — Render report directory" -> "Step 6 — Retrospective (analysis-analysis.md, Part A)";
     "Step 6 — Retrospective (analysis-analysis.md, Part A)" -> "Done";
@@ -112,7 +110,7 @@ digraph analysis_flow {
    RUN_DIRECTIVES   = list of accepted directives (may be empty)
    ```
 
-   Step 3 dispatch consumes `COVERAGE_CMD` (passed as `{DETECTED_COVERAGE_CMD}` to the Coverage & Profiling analyst) and applies `RUN_DIRECTIVES` to the dispatch list / scope globs / tier as appropriate.
+   Step 3 dispatch consumes `COVERAGE_CMD` (forwarded to the Coverage & Profiling analyst as the coverage-command substitution) and applies `RUN_DIRECTIVES` to the dispatch list / scope globs / tier as appropriate.
 
 6. **Check git state, but do not gate on it.** Run `git status --porcelain`. If output is non-empty, note in Run metadata that any `file:line` references in the resulting report may shift if the tree is committed or reverted afterward. Do **not** prompt the user — a dirty tree is not a safety issue and the user has already authorized the run.
 
@@ -147,7 +145,7 @@ Exceptions that always run:
 
 ## Step 3 — Dispatch analysts (parallel)
 
-Launch all remaining analysts **in a single message** using multiple `Agent` tool calls so they run concurrently. Each agent is an Explore subagent. Each prompt is assembled from `references/agent-prompt-template.md` (the wrapper) with these substitutions:
+Launch all remaining analysts **in a single message** using multiple `Agent` tool calls so they run concurrently. The Coverage & Profiling Analyst dispatches in this same message — it is no longer a separate gated step; the only thing distinguishing it is that it may invoke the auto-detected coverage command, which is documented in its own prompt. Each agent is an Explore subagent. Each prompt is assembled from `references/agent-prompt-template.md` (the wrapper) with these substitutions:
 
 - `{SKILL_DIR}` — absolute path to this skill's root directory. The wrapper tells each agent to Read `{SKILL_DIR}/references/analyst-ground-rules.md` before anything else; that is where the full ground rules, finding format, line-shape rules, self-check rubric, and tier-severity anchors live. Ground rules are read from disk per agent, not pasted into the prompt — this halves dispatch tokens.
 - `{AGENT_NAME}`, `{SCOPE_GLOBS}` — from `references/agent-roster.md`
@@ -156,6 +154,7 @@ Launch all remaining analysts **in a single message** using multiple `Agent` too
 - `{OWNED_CHECKLIST_ITEMS}` — the subset of `references/checklist.md` this agent owns, with min-tier tags copied inline (the agent should not need to read the full checklist file)
 - `{INSTRUCTION_FILES}` — list of actual top-level instruction/doc files that exist (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `docs/*.md`)
 - `{APPLICABILITY_FLAGS}` — Scout's applicability flags block (including sub-flags like `web-facing-ui: present, auth-gated`). Analysts key default N/A behaviors off these.
+- `{DETECTED_COVERAGE_CMD}` — the Coverage & Profiling Analyst gets this additional substitution from the Step 0 preflight capture. Pass `auto-detected:<cmd>` if a coverage command was detected; pass `none-detected` if none was found (the analyst will file COV-4 in that case). Other analysts do not receive this substitution.
 
 **Styling Analyst dispatch addendum.** When dispatching the Styling Analyst (and only that analyst), append the **fenced inner block** of `references/styling-prepass.md` to the wrapper output before sending — the file's leading meta-paragraph and outer fence markers are dispatcher-only instructions and must NOT be sent to the analyst. The pre-pass instructs the analyst to build a system inventory across its scope before filing per-file findings — it is the differentiator vs the Frontend Analyst's per-file CSS coverage. Other analysts receive the wrapper unchanged.
 
@@ -168,20 +167,6 @@ Hard rules the wrapper + ground rules enforce (read both before editing):
 - Every finding carries: `file:line`, Severity (Critical/High/Medium/Low), Confidence (Verified / Plausible / Speculative), Effort (Small/Medium/Large/Unknown), **Autonomy** (autofix-ready / needs-decision / needs-spec), **Cluster hint** (kebab slug). The `Fix:` line is written only when Confidence = Verified **and** the agent can name the exact replacement — otherwise the line is omitted.
 - `Fix:` lines recommending a tool invocation (`bunx X`, `pnpm X`, `cargo X --flag`) must verify against the project's pinned toolchain (`.bun-version`, `.nvmrc`, `rust-toolchain.toml`, `.tool-versions`, `package.json#packageManager`). If the pin predates the invocation's availability or is not verifiable, Confidence downgrades to `Plausible` and the finding cannot be `autofix-ready`.
 - Every owned checklist item gets one of five canonical line shapes: `[x] <evidence pointer>`, `[x] clean — <what was sampled or why absence is fine for tier>`, `[-] N/A — <reason>`, `[?] inconclusive — <what was tried>`, `[~] deferred — <reason + tracking>`. Bare `[x]` is a defect. Table-form checklists are a defect (`| Item | Status | ... |` rows are rejected wholesale; see synthesis §8).
-
-## Step 3.5 — Coverage & Profiling (non-interactive)
-
-This step consumes the preflight decision from Step 0 — no prompting happens here. If a run started unattended, it stays unattended.
-
-This step consumes `COVERAGE_CMD` from the Step 0 preflight — no prompting happens here. Coverage runs automatically if a command was detected; if `none-detected`, the analyst runs its full static pass only.
-
-1. **Dispatch the Coverage & Profiling analyst** with the prompt in `references/coverage-profiling-prompt.md`. Substitutions: `{DETECTED_COVERAGE_CMD}` comes from the Step 0 preflight capture. The analyst is the single choke point for runtime invocation; the orchestrator does not run anything itself.
-
-   **Timeout requirement.** When the Coverage & Profiling analyst invokes Bash to run `{DETECTED_COVERAGE_CMD}`, it must pass `timeout: 900000` (15 minutes) explicitly. Real-world coverage suites routinely run 5–12 minutes; the harness's default 2-minute Bash timeout will kill them mid-run. The orchestrator surfaces this requirement in the analyst's prompt (see `references/coverage-profiling-prompt.md`). If the user's preflight included a longer per-gate timeout override, use that; otherwise 900000 is the floor for this analyst.
-
-2. **Merge output into synthesis.** The analyst's findings and checklist lines flow through Step 4 the same way as every other analyst — the only novelty is the optional dynamic-pass Confidence upgrade from Plausible to Verified on covered items.
-
-If the user chose `Abort` at Step 0, this step is never reached. Record `Coverage & Profiling: static-only` in Run metadata when `COVERAGE_CMD = none-detected`.
 
 ## Step 4 — Synthesis
 
@@ -296,8 +281,8 @@ If the user explicitly overrides model tiers for this run, honor the override an
 - **Trusting Scout's applicability or tier flags blindly.** If an analyst finds evidence that an applicability flag was wrong or the tier classification mismatches reality, it says so in its Summary; synthesis re-dispatches or re-tiers.
 - **Cluster-hint sprawl.** If every finding has its own unique cluster hint, clustering collapses into one-finding-per-file and the multi-file report is useless. Keep hints to a small controlled vocabulary per run.
 - **Prompting the user anywhere outside Step 0.** Step 0 captures every decision the run needs (proceed / abort, directives) in a single confirmation gate so the run can proceed unattended. Steps 1 – 6 must not call `AskUserQuestion`. If a mid-run ambiguity arises, either resolve it with a reasonable default and log the choice in Run metadata, or fail the affected finding to `[?] inconclusive — would have required user input, deferred by unattended-run contract`.
-- **Asking a second consent before Step 3.5.** Step 3.5 is non-interactive. Coverage authorization is implicit in the `Proceed` answer at Step 0. If you find yourself wanting to re-ask, stop — the user explicitly designed this skill to run overnight.
+- **Asking a second consent for the Coverage analyst's command execution.** Coverage runs unattended in Step 3 if a command was auto-detected at Step 0. The user's last opportunity to abort is the Step 0 confirmation prompt; do not re-ask in Step 3 or Step 4.
 - **Auto-resolving `Depends-on:` findings when the upstream cluster merges.** The edge is a prompt to check, not a conclusion. See `synthesis.md` §11.
 - **Silent scope expansion during fix work.** When a cluster's fix must touch adjacent files to pass a verification gate, document every extra file under an `Incidental fixes` section in the commit message. See `synthesis.md` §12.
 - **Quoting secrets.** Describe presence, never contents.
-- **Running anything outside Step 3.5.** No `bun test`, no `npm run build`, no migrations, no scripts in any other step. Static reading only.
+- **Running anything outside the Coverage & Profiling Analyst.** No `bun test`, no `npm run build`, no migrations, no scripts run by any other analyst — and no bench commands run by anyone in v3.9+. The Coverage & Profiling Analyst is the single execution exception. Static reading only for everyone else.
