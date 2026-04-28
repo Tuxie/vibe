@@ -93,7 +93,7 @@ When both tables apply (mixed surface: local-first admin UI + public telemetry e
 
 5. **Forbidden reads.** Do not open any of: `.env*`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, anything under `secrets/`, `credentials/`, `.ssh/`. If such a file's existence is itself a finding, describe the path only — never its contents. Do not quote any token that looks like a credential, API key, hash, or private key.
 
-6. **Forbidden commands.** No `install`, `add`, `update`, `build`, `migrate`, `exec`, `test`, `run`, no package-manager subcommands that modify the project's state (lockfile, node_modules, virtualenvs, etc.), and no execution of project code or scripts. Allowed: `git log`, `git blame`, `git ls-files`, `git status`, `rg`, `ls`, `wc`, and the Read tool. (The Coverage & Profiling analyst has an explicit exception in Step 3.5; no other analyst does.)
+6. **Forbidden commands.** No `install`, `add`, `update`, `build`, `migrate`, `exec`, `test`, `run`, no package-manager subcommands that modify the project's state (lockfile, node_modules, virtualenvs, etc.), and no execution of project code or scripts. Allowed: `git log`, `git blame`, `git ls-files`, `git status`, `rg`, `ls`, `wc`, and the Read tool. (The Coverage & Profiling analyst has an explicit exception described in its own prompt — it may invoke a single auto-detected coverage command unattended; no other analyst may execute anything.)
 
    **Dependency-freshness allowlist (read-only registry queries).** For DEP-1, DEP-6, TOOL-3 and related dependency-version checks, analysts MAY run the native "what's newer than what I have" command for the project's package manager. These commands read the registry but do not modify the lockfile, `node_modules`, or any project file:
 
@@ -111,7 +111,7 @@ When both tables apply (mixed surface: local-first admin UI + public telemetry e
 
    If the native command is not available for the project's ecosystem, or the analyst cannot determine the correct invocation from a single probe (`bun --version` etc.), web-search for the package's latest stable version instead (see "Dependency freshness checks" below). Commands that write state (`install`, `add`, `update`, `upgrade`) remain forbidden.
 
-   (The Coverage & Profiling analyst has a separate, broader exception in Step 3.5; the allowlist above is for all analysts, not just Coverage.)
+   (The Coverage & Profiling analyst has a separate, broader exception described in its own prompt; the allowlist above is for all analysts, not just Coverage.)
 
 7. **No runtime observation.** Do not run tests or builds to "observe behavior." If dynamic behavior matters, describe what static analysis cannot answer and mark the finding Confidence: Speculative.
 
