@@ -118,13 +118,20 @@ The Structure Scout assigns the repo one tier, with evidence. Analysts filter ow
 
 ## A11Y — Accessibility (frontend)
 
+Sole owner: Accessibility Analyst (introduced in v3.10). Runs only when the Scout emits `web-facing-ui: present` (any sub-flag including `auth-gated` and `local-only` — auth-gated UIs need a11y too). The Accessibility Analyst's system-inventory pre-pass (see `accessibility-prepass.md`) is mandatory before filing A11Y-1, A11Y-4, A11Y-6, A11Y-7, or A11Y-9 findings. A11Y-3 (color-only signal / contrast) is jointly owned with the Styling Analyst — Styling's lens is palette internal coherence; Accessibility's lens is rendered combinations in markup.
+
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
-| A11Y-1 | Interactive element without accessible name (button/link without text or `aria-label`) | T1 | Frontend |
-| A11Y-2 | Missing keyboard operability (click-only handler, modal without focus trap) | T1 | Frontend |
-| A11Y-3 | Color-only signal, or contrast below WCAG AA | T2 | Frontend, Styling |
-| A11Y-4 | Missing or wrong landmark / heading structure (multiple `<h1>`, missing `<main>`) | T2 | Frontend |
-| A11Y-5 | Missing `alt` on meaningful images; decorative images without `alt=""` | T1 | Frontend |
+| A11Y-1 | Interactive element without accessible name (button/link without text or `aria-label`) | T1 | Accessibility |
+| A11Y-2 | Missing keyboard operability (click-only handler, modal without focus trap) | T1 | Accessibility |
+| A11Y-3 | Color-only signal, or contrast below WCAG AA | T2 | Styling, Accessibility |
+| A11Y-4 | Missing or wrong landmark / heading structure (multiple `<h1>`, missing `<main>`) | T2 | Accessibility |
+| A11Y-5 | Missing `alt` on meaningful images; decorative images without `alt=""` | T1 | Accessibility |
+| A11Y-6 | ARIA misuse — wrong role for the element type, conflicting `aria-*` attributes, redundant ARIA on native-semantic elements (`<button role="button">`, `<a role="link">`), `aria-hidden` on focusable elements (creates unreachable focus targets), or `aria-label` on elements that derive their name from text content (name conflict, screen reader announces wrong name). Look for `role="..."` overriding semantic-HTML defaults, attribute combinations that violate the ARIA spec, and labelling conflicts | T2 | Accessibility |
+| A11Y-7 | Focus management failures — modal/dialog/sheet/drawer that opens without trapping focus, doesn't return focus to the trigger on close, or skips focus to a non-interactive element. Route changes (SPA navigation) that don't move focus to the new page's heading or main landmark. Skip-to-main link missing on long navigation chains | T1 | Accessibility |
+| A11Y-8 | `prefers-reduced-motion` not respected — animations, transitions, parallax, auto-play video, or motion-heavy effects emitted unconditionally. Look for keyframes / transitions / `requestAnimationFrame` usage in components without a `@media (prefers-reduced-motion: reduce)` guard or programmatic equivalent | T2 | Accessibility |
+| A11Y-9 | Form errors not announced to assistive tech — error messages rendered visually next to fields without `aria-describedby` association, error containers without `role="alert"` / `aria-live` for dynamic announcements, or single-field validation that paints red borders without a text equivalent. Form-level error summaries that don't focus or announce on submit | T1 | Accessibility |
+| A11Y-10 | Touch target size below 24×24 CSS px on interactive elements (`<button>`, `<a>`, `<input>` excepting native sliders, custom-pointer roles). Includes nested touch targets where the visible hit area is smaller than the actual `<button>` element. WCAG 2.2 baseline; default min for primary actions is 44×44, but 24×24 catches the egregious cases | T2 | Accessibility |
 
 ## I18N — Internationalization
 
@@ -240,7 +247,7 @@ Sole owner: Styling Analyst. These IDs catch cross-file CSS pathologies that the
 | ID | Item | Min tier | Owner |
 |----|------|----------|-------|
 | UX-1 | Inconsistent or confusing UI look & feel (spacing, typography, iconography, affordances) | T2 | Frontend, Styling |
-| UX-2 | Inconsistent keyboard shortcuts or mouse interactions | T2 | Frontend |
+| UX-2 | Inconsistent keyboard shortcuts or mouse interactions | T2 | Accessibility |
 
 ## DB — Database schema
 
