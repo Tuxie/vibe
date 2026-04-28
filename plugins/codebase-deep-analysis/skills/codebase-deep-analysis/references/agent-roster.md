@@ -18,7 +18,7 @@ If the user explicitly overrides analyst model tiers for the run, apply that ove
 | **Security Analyst** | **Senior** | Entire repo — authn/z, input validation, secrets handling, subprocess, deserialization, crypto, file IO on user input, SSRF, ReDoS, OWASP top 10; also CI supply chain and container security cross-cuts | SEC-1, GIT-3, FUZZ-1 (joint with Test), CI-1..CI-5 (joint with Tooling, if `ci`), CONT-3 (joint with Tooling, if `container`), IAC-1..IAC-3 (joint with Tooling, if `iac`) |
 | **Tooling Analyst** | Standard | `.github/**`, CI configs, `Dockerfile*`, `Makefile`, `justfile`, package manager configs (`package.json` scripts, `bunfig.toml`, etc.), deploy configs, lockfiles, toolchain pins | TOOL-1..TOOL-7, BUILD-1..BUILD-4, GIT-2, GIT-4, CI-1..CI-5 (if `ci`, joint with Security), CONT-1, CONT-2, CONT-4 (if `container`), IAC-1..IAC-3 (if `iac`, joint with Security) |
 | **Docs Consistency Analyst** | Standard | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `README.md`, `docs/**`, inline comments across whole repo | DOC-1..DOC-5, META-1, NAM-8 (user-visible text in docs), GIT-1, DEAD-3 |
-| **Coverage & Profiling Analyst** | Standard | Test directories, coverage artifacts (`coverage/**`, `lcov.info`, `coverage-summary.json`), bench/profile artifacts (`bench/**`, `flamegraph.*`, `*.prof`), `package.json` scripts / `Makefile` / `justfile` / `Taskfile*` targets | COV-1..COV-3, PROF-1..PROF-2 (new IDs — see coverage-profiling-prompt.md for definitions) |
+| **Coverage & Profiling Analyst** | Standard | Test directories, coverage artifacts (`coverage/**`, `lcov.info`, `coverage-summary.json`), bench/profile artifacts (`bench/**`, `flamegraph.*`, `*.prof`), `package.json` scripts / `Makefile` / `justfile` / `Taskfile*` targets, instruction files (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md` / `README.md`) for documented coverage thresholds | COV-1..COV-6, PROF-1..PROF-2 |
 
 ## `scripts/` directory ownership
 
@@ -48,11 +48,11 @@ Joint items (e.g., `CI-1` owned by Tooling + Security, `FUZZ-1` by Test + Securi
 - Backend owns log messages and CLI output.
 - Docs owns `*.md` files and inline comments.
 
-## Gated analyst: Coverage & Profiling
+## Coverage & Profiling Analyst execution exception
 
-Unlike every other analyst, Coverage & Profiling may **run** project commands (coverage target, bench target). That breaks the read-only invariant of the rest of the skill, so it is gated behind the execution authorization captured at Step 0's single consolidated consent prompt — it does **not** dispatch in the Step 3 parallel fan-out. It is also static-capable: if the user chose `static-only` at Step 0, the analyst still produces a static gap-analysis pass (source→test mapping, missing-test inference, bench-target presence check) without running anything. Step 3.5 itself is non-interactive in v3.1+.
+Coverage & Profiling is the only analyst that may execute project commands. It runs the auto-detected coverage command unattended in the regular Step 3 parallel fan-out — there is no consent gate at dispatch time. The Step 0 confirmation prompt (proceed / abort / instruct) is the single point at which the user can prevent the run. If the orchestrator's Step 0 detection found no coverage command, the analyst files COV-4 *Missing test coverage tracking system* with tier-graded severity and runs the static pass only.
 
-See `coverage-profiling-prompt.md` for the analyst's prompt; see SKILL.md Step 0 (preflight capture) and Step 3.5 (non-interactive dispatch) for the execution protocol.
+See `coverage-profiling-prompt.md` for the analyst's prompt and the threshold-derivation rule; see SKILL.md Step 0 for the preflight protocol and Step 3 for the dispatch list.
 
 ## Escalation
 
