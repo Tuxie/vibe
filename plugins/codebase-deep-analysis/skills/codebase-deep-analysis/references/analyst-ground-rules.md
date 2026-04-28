@@ -80,7 +80,7 @@ When both tables apply (mixed surface: local-first admin UI + public telemetry e
 
    | Flag = `uncertain` | Treat as `present` for | Treat as `absent` for |
    |---|---|---|
-   | `web-facing-ui` | Security checklist items, A11Y-1..A11Y-5 | SEO-1..SEO-3 |
+   | `web-facing-ui` | Security checklist items, A11Y-1..A11Y-10 | SEO-1..SEO-3 |
    | `database` | Security checklist items (data handling paths) | DB-1..DB-5, MIG-1..MIG-5 |
    | `i18n-intent` | — | I18N-1..I18N-3 (N/A with reason "no i18n intent") |
    | `security-surface` | all Security checklist items | — (security defaults to present on uncertainty) |

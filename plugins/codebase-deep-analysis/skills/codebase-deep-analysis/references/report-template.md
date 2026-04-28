@@ -256,7 +256,7 @@ An empty `Commit-guidance:` field is the norm; do not pad it for every cluster.
 | `Pre-conditions:` | optional | prerequisites this cluster's fix needs in place to land cleanly. Populated automatically by synthesis §5 "Pre-conditions inference" when the cluster flips a gate (coverage threshold, lint rule, type check) and in-scope files currently fail that gate. Format: bulleted list, each `- <file-or-cluster-ref>: <required state>`. |
 | `attribution:` | optional | fuzz-gap convention. When a fuzz-gap cluster's recommended fix catches a bug whose scope belongs to a different cluster, the bug lands in the fuzz cluster's commit but `attribution:` names the originating cluster: `attribution: 04-input-validation (caught-by: 15-fuzz-gaps)`. Do not re-file the bug under the origin cluster. |
 | `Commit-guidance:` | optional | single-line prose with cluster-specific commit notes — expected `Incidental fixes` scope, a `Depends-on:` chain to traverse, a known scope-expansion risk. Leave empty when there are no cluster-specific notes; the canonical commit rules live in the README's "Commit conventions" section. Do not restate canonical rules here. |
-| `model-hint:` | optional | `junior` \| `standard` \| `senior` — synthesis populates per cluster (see `synthesis.md` §6). Default `standard`. `iar` reads this when dispatching per-cluster subagents. Absent = standard fallback. |
+| `model-hint:` | optional | `junior` \| `standard` \| `senior` \| `senior-1m` — synthesis populates per cluster (see `synthesis.md` §6). Default `standard`. `iar` reads this when dispatching per-cluster subagents. Absent = standard fallback. |
 
 Minimal frontmatter is valid when optional fields are empty. A typical cluster may carry only:
 
