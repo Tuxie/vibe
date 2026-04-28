@@ -111,14 +111,42 @@ This file is dispatched-only-for-Accessibility, like `styling-prepass.md`. SKILL
 
 **Naming caveat:** "1M" denotes "the largest context window the harness supports" rather than a literal hard-coded number. As model offerings evolve (e.g., 2M context becomes available), the tier may be renamed or its concrete model assignment may change without renaming. The retrospective template (`analysis-analysis-template.md`) records the actual model used so future calibration is traceable.
 
-**Auto-escalation chain:**
+**Auto-escalation paths (two; either can fire):**
+
+**Path A — gradient escalation, after a first-pass run:**
 
 | Trigger | Escalation |
 |---------|------------|
 | Analyst's declared scope >50k LOC, OR first-pass output contains >30 H/C findings | Standard → Senior |
 | Analyst's declared scope >150k LOC, OR first-pass output >2k lines (signals genuine context pressure), OR synthesis input total exceeds an estimated 100k tokens | Senior → Senior-1M |
 
-The Senior → Senior-1M trigger is **AND-ed with `Senior` already being the analyst's tier** — Standard → Senior-1M direct escalation does not happen. Two-step gradient prevents over-escalation.
+Path A is the existing-style after-the-fact escalation: an analyst returned weak / overloaded output and a senior-tier re-dispatch follows. The gradient prevents over-escalation in normal cases.
+
+**Path B — Scout-driven direct dispatch at Senior-1M:**
+
+The Scout, during Step 1's mapping pass, emits a new optional block:
+
+```
+Recommend senior-1m for: {analyst-name-list, or "none"}
+Reason: {one sentence per analyst — the specific evidence that motivated the recommendation}
+```
+
+The orchestrator reads the recommendation in Step 2 and dispatches the named analysts directly at Senior-1M, **bypassing both Standard and Senior tiers**. No prior pass is required. The two-step gradient (Path A) does not apply to analysts that started on Senior-1M — they're already at the top.
+
+**Scout's criteria for recommending Senior-1M (any one is enough):**
+
+1. **Single-analyst scope >300k non-vendored LOC.** Twice the Senior threshold. The analyst's declared scope alone genuinely exceeds what a 200k-context model can reason about coherently.
+2. **Polyglot single-analyst scope.** Backend Analyst on a repo where backend code spans ≥4 language families (e.g., Go services + Python ML + Rust core + TypeScript edge) and cross-module reasoning requires holding several languages' idioms simultaneously.
+3. **Mid-large monorepo cross-cutting Security.** Project total non-vendored LOC >1M AND `security-surface: present` — Security Analyst by definition spans the entire repo; on a 1M+ LOC enterprise monorepo the standard 200k context fragments security reasoning.
+4. **Synthesis pre-prediction.** Scout estimates that the project's tier + scope + analyst count will produce a synthesis input above 100k tokens. Recommend `synthesis` (the orchestrator's own pass, not an analyst) for Senior-1M directly. This duplicates the synthesis-specific auto-escalation rule below; either path can satisfy the trigger.
+
+The Scout's recommendation block is optional output — most runs emit `Recommend senior-1m for: none`. The orchestrator does not second-guess a "none" recommendation; if the run later trips Path A's thresholds, the gradient kicks in normally.
+
+If the Scout itself ran on Junior tier (the default) and the scope evidence is borderline, it emits the recommendation with `Reason: ...; confidence: low` — the orchestrator then uses the standard gradient (Path A) instead of the Scout's Path B recommendation, but logs the deferred recommendation in Run metadata so the retrospective can record whether ignoring it cost quality.
+
+Run metadata records, per analyst:
+- `Tier: <tier>` — tier the analyst actually ran on.
+- `Tier path: <path>` — `default` | `gradient: standard→senior` | `gradient: senior→senior-1m` | `scout-direct: senior-1m` | `user-directive`.
 
 **Synthesis-specific rule:**
 
@@ -154,10 +182,11 @@ The user-facing override path stays the same (`use senior-1m on <cluster-slug>` 
 
 | File | Change |
 |------|--------|
-| `references/agent-roster.md` | Add Accessibility Analyst row between Styling and Database; update Frontend row (drop A11Y-1..5, drop UX-2); update Escalation section to document Senior → Senior-1M trigger; add Senior-1M to the model-tier vocabulary explanation |
+| `references/agent-roster.md` | Add Accessibility Analyst row between Styling and Database; update Frontend row (drop A11Y-1..5, drop UX-2); update Escalation section to document both Senior → Senior-1M (gradient, Path A) and Scout-direct Senior-1M (Path B); add Senior-1M to the model-tier vocabulary explanation |
 | `references/checklist.md` | Update `## A11Y` section preamble (new owner: Accessibility Analyst); update Owner column on A11Y-1..A11Y-5 (Frontend → Accessibility, with A11Y-3 three-way joint Frontend/Styling/Accessibility); update Owner on UX-2 (Frontend → Accessibility); add A11Y-6..A11Y-10 rows |
 | `references/accessibility-prepass.md` | Create new file (mirrors `styling-prepass.md`) holding the system-inventory pre-pass addendum |
-| `SKILL.md` | Step 3 dispatch — add Accessibility Analyst dispatch addendum (mirrors Styling Analyst pattern); Step 2 applicability pruning — add `web-facing-ui: absent → skip Accessibility too`; Common mistakes — no changes; Model selection section — add Senior-1M tier definition + escalation rules |
+| `SKILL.md` | Step 3 dispatch — add Accessibility Analyst dispatch addendum (mirrors Styling Analyst pattern); Step 2 applicability pruning — add `web-facing-ui: absent → skip Accessibility too`; Step 2 — add a one-paragraph rule for reading the Scout's `Recommend senior-1m for:` block and dispatching named analysts directly at Senior-1M; Model selection section — add Senior-1M tier definition + the two escalation paths (Path A gradient, Path B Scout-direct); Common mistakes — add an entry warning against ignoring the Scout's recommendation in Step 2 |
+| `references/structure-scout-prompt.md` | Add a new optional output block: `Recommend senior-1m for: <analyst-list>` with one-line `Reason:` per analyst. Document the criteria the Scout uses (single-analyst scope >300k LOC; polyglot single-analyst scope ≥4 language families; mid-large monorepo Security on >1M LOC; synthesis pre-prediction >100k tokens). Most runs emit `Recommend senior-1m for: none`. |
 | `references/synthesis.md` | §1b health check thresholds — apply unchanged to Accessibility; §3 right-sizing — apply unchanged; §6 step 7 — add Accessibility's cluster-hint vocabulary note (mirrors Styling note); §6 step 8 (model-hint selection) — add the senior-1m upgrade rule |
 | `references/analyst-ground-rules.md` | Update read-depth requirement to mention "ARIA attribute semantics" alongside CSS rule blocks; otherwise unchanged |
 | `references/analysis-analysis-template.md` | Run-identity block adds an optional `Senior-1M usage:` line capturing which analysts (if any) escalated and the trigger reason; existing fields unchanged |
@@ -165,7 +194,7 @@ The user-facing override path stays the same (`use senior-1m on <cluster-slug>` 
 | `VERSION` (implement-analysis-report) | 3.9.0 → 3.10.0 |
 | `plugin.json` | 3.9.0 → 3.10.0 |
 
-Total: 9 files modified, 1 file created.
+Total: 10 files modified, 1 file created.
 
 ### Frontend Analyst row update (sole-transfer accounting)
 
@@ -193,7 +222,8 @@ The lens-split convention from `agent-roster.md` Ownership-collisions section is
 |------|------------|
 | **Two-eye loss on a11y findings.** Sole transfer means if Accessibility misses something, Frontend won't catch it (current shallow Frontend a11y coverage is replaced by deep Accessibility coverage with no overlap). | Frontend simply doesn't own A11Y-* IDs anymore — the dispatch wrapper passes Frontend's owned-IDs without A11Y-*, so the analyst won't file A11Y findings. Cross-scope observations still go in `Notes` per the existing `analyst-ground-rules.md` convention; that catches the rare case where Frontend spots something Accessibility might miss. The system-inventory pre-pass for Accessibility encodes the cross-file reasoning that the current shallow-Frontend pass lacks; missed-finding rate should drop, not rise. The retrospective Part A captures whether this holds. |
 | **A11Y-3 two-way joint complexity.** Styling and Accessibility both own A11Y-3 with different lenses. Synthesis dedup is the backstop. | Documented in `agent-roster.md` Ownership-collisions section with explicit per-side scope: Styling = palette internal coherence; Accessibility = rendered combinations in markup. Frontend's v3.8-era joint role on A11Y-3 retires cleanly with the rest of its A11Y-* sole transfer to Accessibility. |
-| **Senior-1M cost runaway.** A misconfigured auto-escalation kicks every analyst on a T3 monorepo to Senior-1M. | The escalation chain is two-step gradient (must already be at Senior to escalate to Senior-1M). The synthesis-specific rule has three AND-ed conditions. Tier defaults are Standard except Security at Senior. Run metadata records every escalation with the trigger; over-escalation surfaces in the retrospective. The auto-escalate ceiling for synthesis is documented as "rarely fires; expect <5% of T3 runs to hit it". |
+| **Senior-1M cost runaway.** A misconfigured auto-escalation or Scout-direct dispatch kicks every analyst on a T3 monorepo to Senior-1M. | Path A's gradient discipline (must already be at Senior) prevents the gradient case. Path B (Scout-direct) requires concrete evidence — single-analyst scope >300k LOC OR polyglot ≥4 language families OR repo >1M LOC for cross-cutting Security; the Scout cannot recommend Senior-1M on vibes. Both synthesis-specific rules have three AND-ed conditions. Tier defaults are Standard except Security at Senior. Run metadata records every escalation with `Tier path:` showing whether it was gradient, Scout-direct, or user-directive. Expect Path B to fire on <5% of T3 runs and effectively never on T1/T2. The retrospective Part A surfaces over-escalation. |
+| **Scout's Senior-1M recommendation rests on a Junior-tier model's judgment.** The Scout default tier is Junior; asking it to predict context-saturation may produce false positives. | The Scout's recommendation is criteria-driven, not vibes-driven — the four trigger conditions are concrete numeric thresholds (LOC counts, language-family count) plus one categorical (`security-surface: present`). Junior models can count files and identify language families reliably. Subjective judgments are explicitly out of scope ("complex", "hard to reason about" — the Scout doesn't get to recommend on those). When evidence is borderline, the Scout emits `confidence: low` and the orchestrator defers to Path A; the Scout's recommendation never overrides existing gradient logic. |
 | **Senior-1M name rot.** "1M" stops being meaningful when 2M+ models ship. | Naming caveat captured in spec + roster Escalation section: "1M" means "the largest context the harness supports". Concrete model assignment lives in the orchestrator's working memory, recorded per-run in `analysis-analysis.md` so future calibration is traceable. Skill can rename Senior-1M to Senior-XL or similar in v-next without breaking semantics. |
 | **A11Y-6..A11Y-10 false-positive rate.** Five new IDs at first-real-run; false-positive risk on novel patterns (especially A11Y-6 ARIA misuse — ARIA spec is nuanced). | All five IDs go into the standard right-sizing filter at Step 4 §3. The Confidence: Verified bar requires the analyst to cite the specific failure mode (e.g., "role='button' on a `<button>` is redundant"); Plausible/Speculative findings get filtered down. Calibration note in `accessibility-prepass.md` flags A11Y-6 as the highest-risk ID for first-run feedback. |
 | **Frontend's roster cell still long.** Even after losing 5 IDs, Frontend remains the largest-mandate analyst (~83 IDs). | Acknowledged. Future versions might split FE-* further (form-handling, reactive-anti-patterns, bundle-pollution) but those are coherent within Frontend's framework-correctness lens. v3.10's targeted shrinkage doesn't try to solve the bigger structural Frontend question. |
