@@ -47,6 +47,8 @@ Analysts dispatched: {list}
 Analysts skipped: {list with reason}
 Step 0 confirmation: {Proceed | Abort | Free-text directives applied: <list>}   (v3.9+: single confirmation prompt with optional directive slot; Coverage & Profiling dispatches in Step 3 with no separate consent)
 Coverage command: {auto-detected:<cmd> | none-detected}   (v3.9+: bench command detection dropped)
+Senior-1M usage: {none | <analyst-list> via <path: gradient | scout-direct | user-directive>}   (v3.10+: tier path the analyst actually ran on; "none" if no analyst escalated to senior-1m)
+Effort overrides: {none | <list of "<analyst>: <requested-effort>; resolved as <actual-effort>">}   (v3.10+: any non-default effort recommendations, plus harness resolution outcomes; "none" if every dispatch ran at default effort)
 Total wall time, approximate: {N minutes}
 Total output tokens, approximate: {sum across analysts}
 ```
