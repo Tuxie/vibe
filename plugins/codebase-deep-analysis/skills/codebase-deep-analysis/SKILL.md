@@ -120,7 +120,7 @@ digraph analysis_flow {
 
 ## Step 1 — Structure Scout
 
-Dispatch **one** Explore subagent with the prompt in `references/structure-scout-prompt.md`. A junior/low-cost model is preferred for this pass; fall back to the default model if that tier is unavailable.
+Dispatch **one** Explore subagent with the prompt in `references/structure-scout-prompt.md`. The Scout runs at **Standard** tier by default (changed from Junior in v3.10) — the Scout's output (tier classification, applicability flags, docs-drift signals, the v3.10 Senior-1M recommendation block) is reused by every downstream analyst, so reliability there has compounded value across the parallel fan-out. Cost increase per run is small (one dispatch, ~5x bump on a tiny absolute) and well-amortized.
 
 The Scout's job is four things: (a) map the codebase; (b) **classify the project tier (T1 / T2 / T3)** with cited evidence; (c) flag **load-bearing instruction-file drift** (CLAUDE.md / AGENTS.md / GEMINI.md / README.md that have fallen behind the code they reference); (d) detect the **pre-release verification surface** (CI config + local CI-equivalent runner). The tier is the single biggest right-sizing lever — it drives which analysts run, which checklist items are owned, and which findings survive synthesis. The drift flag tells the Docs analyst where to look hardest. The pre-release surface controls whether the final README emits a release checklist.
 
@@ -132,7 +132,7 @@ If the repo has no `.git/`, the scout falls back to `rg --files --hidden --no-ig
 
 Read the scout's **Applicability flags** block and **Project tier** block.
 
-- **Applicability pruning.** Drop analysts whose scope is absent: no web UI → skip Frontend; no DB → skip Database; no styling surface → skip Styling; no CI config → Tooling still runs (it owns BUILD/GIT even without CI) but its CI-specific items become `[-] N/A`.
+- **Applicability pruning.** Drop analysts whose scope is absent: no web UI → skip Frontend AND Accessibility (both gate on `web-facing-ui: present`); no DB → skip Database; no styling surface → skip Styling; no CI config → Tooling still runs (it owns BUILD/GIT even without CI) but its CI-specific items become `[-] N/A`.
 - **Tier pruning.** Do not skip analysts based on tier — tier filtering happens per checklist-item inside each analyst, not at the roster level.
 
 Record every skipped analyst and the reason — the final `README.md` must state this under Run metadata.
@@ -142,6 +142,15 @@ Exceptions that always run:
 - **Security Analyst always runs.** Even a "pure backend library" can ship a subprocess call or deserialization surface.
 - **Docs Analyst always runs** if any of `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `README.md`, or `docs/**` exists.
 - **Tooling Analyst always runs** unless the repo has literally no manifest/build config at all (rare; essentially `.txt` files only).
+
+**Read the Scout's `Recommend senior-1m for:` block (v3.10+).** The Scout may emit a recommendation of analysts to dispatch directly at Senior-1M, bypassing both Standard and Senior tiers. Apply the recommendation in Step 3 dispatch:
+
+- For each analyst named in the block, set its dispatch tier to Senior-1M and record `Tier path: scout-direct: senior-1m` in Run metadata.
+- For analysts NOT in the block, dispatch at their default tier (Standard for most, Senior for Security). Path A's gradient still applies if their first-pass output trips the auto-escalation thresholds.
+- If the Scout flagged a recommendation with `confidence: low`, **do not** apply it directly. Defer to Path A's gradient (the analyst dispatches at default; if first-pass output is weak/large, normal escalation kicks in). Log the deferred recommendation in Run metadata so the retrospective can record whether ignoring it cost quality.
+- If the Scout emits `Recommend senior-1m for: none`, no Path B dispatch happens. Path A's gradient remains available.
+
+The orchestrator never invents Senior-1M dispatches outside the Scout's recommendation, the Path A gradient triggers, and explicit user directives (`use senior-1m on <analyst>` from Step 0). Senior-1M dispatch always traces back to one of those three paths.
 
 ## Step 3 — Dispatch analysts (parallel)
 
@@ -157,6 +166,8 @@ Launch all remaining analysts **in a single message** using multiple `Agent` too
 - `{DETECTED_COVERAGE_CMD}` — the Coverage & Profiling Analyst gets this additional substitution from the Step 0 preflight capture. Pass `auto-detected:<cmd>` if a coverage command was detected; pass `none-detected` if none was found (the analyst will file COV-4 in that case). Other analysts do not receive this substitution.
 
 **Styling Analyst dispatch addendum.** When dispatching the Styling Analyst (and only that analyst), append the **fenced inner block** of `references/styling-prepass.md` to the wrapper output before sending — the file's leading meta-paragraph and outer fence markers are dispatcher-only instructions and must NOT be sent to the analyst. The pre-pass instructs the analyst to build a system inventory across its scope before filing per-file findings — it is the differentiator vs the Frontend Analyst's per-file CSS coverage. Other analysts receive the wrapper unchanged.
+
+**Accessibility Analyst dispatch addendum (v3.10).** When dispatching the Accessibility Analyst (and only that analyst), append the **fenced inner block** of `references/accessibility-prepass.md` to the wrapper output before sending — the file's leading meta-paragraph and outer fence markers are dispatcher-only instructions and must NOT be sent to the analyst. The pre-pass instructs the analyst to build a system inventory across its scope (interactive-element census, landmark inventory, modal/dialog inventory, form-error inventory, ARIA-role census) before filing per-file findings — it is the differentiator vs the v3.9-era shallow Frontend a11y coverage. Other analysts receive the wrapper unchanged.
 
 Hard rules the wrapper + ground rules enforce (read both before editing):
 
@@ -253,15 +264,87 @@ The scratch codebase map is retained. `analysis-analysis.md` is **not** under `.
 
 ## Model selection
 
-Default every analyst to the **standard** model tier. Escalations:
+Four logical tiers — Junior, Standard, Senior, Senior-1M — and a separate reasoning-effort axis. The skill's defaults are conservative; every escalation has an explicit trigger.
 
-- **Security Analyst → senior** by default (cross-cutting; high cost of missing a finding).
-- **Any analyst whose declared scope exceeds ~50k LOC, or which returns >30 High/Critical findings in the first pass → re-dispatch that agent on senior** for a second, deeper pass and merge outputs during synthesis.
-- **Junior** only for Structure Scout (and any pure enumeration helper you add later).
+### Default tiers per dispatch
 
-There is **no** "when unsure, pick the more powerful tier" override. Unsure stays standard; synthesis escalates surgically rather than broadly.
+- **Structure Scout: Standard** (changed from Junior in v3.10 — the Scout's output calibrates the entire run; reliability matters more than the small cost bump).
+- **Backend, Frontend, Styling, Accessibility, Database, Test, Tooling, Docs Consistency, Coverage & Profiling: Standard.**
+- **Security Analyst: Senior** by default (cross-cutting scope; high cost of missing a finding).
+- **Senior-1M: never the default for any analyst.** Reserved for escalation paths described below.
+- **Junior: not used by any default dispatch in v3.10+.** Remains in the vocabulary for future enumeration-only helpers.
 
-If the user explicitly overrides model tiers for this run, honor the override and record it in Run metadata as `Analyst override: per user request, <scope of analysts> ran on <model/tier>`. The override does not disable the senior re-dispatch rules; if a scoped analyst still trips an escalation condition, record whether the override already satisfied it or whether a second pass ran.
+There is **no** "when unsure, pick the more powerful tier" override. Unsure stays standard; escalations are evidence-driven and surgical.
+
+### Three escalation paths to Senior or Senior-1M
+
+**Path A — gradient escalation (existing-style, after a first-pass run).**
+
+| From | To | Trigger |
+|------|----|---------|
+| Standard | Senior | Analyst's declared scope exceeds ~50k LOC, OR first-pass output contains >30 H/C findings |
+| Senior | Senior-1M | Declared scope exceeds ~150k LOC, OR first-pass output >2k lines, OR synthesis input >100k tokens |
+
+**Path B — Scout-direct dispatch at Senior-1M (new in v3.10).**
+
+The Scout, during Step 1's mapping pass, may emit a `Recommend senior-1m for: <analyst-list>` block. The orchestrator dispatches the named analysts directly at Senior-1M in Step 3, bypassing both Standard and Senior. Criteria are mechanical: single-analyst scope >300k LOC, polyglot ≥4 language families, mid-large monorepo cross-cutting Security on >1M LOC, or synthesis pre-prediction >100k tokens. Vibes-based recommendations are not allowed. `confidence: low` recommendations are deferred to Path A.
+
+**Path C — user directive at Step 0.**
+
+The Step 0 confirmation prompt accepts free-text directives:
+- `use senior on <analyst-name>` (existing v3.9)
+- `use senior-1m on <analyst-name>` (new v3.10)
+- `use max-effort on <analyst-name>` (new v3.10, additive to model-tier directives — see Reasoning effort below)
+
+Recorded in Run metadata as `Tier path: user-directive` / `Effort override: per user request`.
+
+### Synthesis-specific Senior-1M auto-escalation
+
+Synthesis (Step 4) is one long pass holding all analysts' outputs. It auto-escalates to Senior-1M when **all** hold:
+
+- Project tier = T3.
+- Active analyst count ≥ 10 (after applicability pruning).
+- Total findings post-collection ≥ 100, OR total findings-text ≥ 50k tokens.
+
+Otherwise synthesis runs at Standard. Most synthesis passes — including most T3 runs — stay at Standard.
+
+### Reasoning effort axis (orthogonal to model tier)
+
+Three levels: `default | high | max`. Orthogonal to model strength and context window. Default for every dispatch = harness default. The skill actively recommends bumping effort only on a closed list:
+
+- **Synthesis when synthesis-Senior-1M trigger fires:** recommend `max` effort.
+- **Security on a Senior-1M dispatch (Path B or Path A gradient):** recommend `high` effort. Use `max` if Scout's recommendation cites cross-cutting attack surface (auth + deserialization + subprocess).
+- **Cluster execution in `implement-analysis-report` when cluster has both `model-hint: senior-1m` AND `Autonomy: needs-spec`:** recommend `max` effort via the cluster's `effort-hint:` frontmatter field.
+
+Everything else stays at `default`. Don't over-specify.
+
+### Resolution rule (load-bearing, never silently downgrade)
+
+The four logical tiers map to whatever models the harness exposes. Two real-world topologies:
+
+| Topology | Junior | Standard | Senior | Senior-1M |
+|----------|--------|----------|--------|-----------|
+| Business/enterprise (separate small-context and large-context senior options) | Haiku-class | Sonnet-class | Opus-class @ ~200k | Opus-class @ 1M |
+| Personal plans (Claude Pro/Max, ChatGPT Plus/Pro, etc.) | Haiku-class | Sonnet-class | Opus-class @ ~1M | Same as Senior |
+
+**Resolution semantics:**
+
+- Both Senior + Senior-1M available as distinct concrete models → use them per the spec.
+- Only one senior-class model exposed → it serves as both Senior and Senior-1M. Every Senior dispatch and every Senior-1M dispatch goes to that same model. The cost framing changes (no longer 6-10x of Senior; just 2-3x for the bigger context payload on the same model) but the dispatch path is unchanged.
+- No senior-class model at all (rare; very-restricted plans) → use the highest available tier and log `Tier resolution: Senior unavailable in harness; using <highest-available-tier> instead` in Run metadata.
+- Effort: same semantics. If `max` requested and harness only exposes `default`, log `Effort resolution: max requested; harness exposes only default; ran at default`.
+
+The orchestrator does not auto-detect harness topology. Default fallback assumes "personal-plan-style collapsed senior tier" — the most common shape and the safer fallback (use the bigger model, not the smaller one) on ambiguity.
+
+### Run metadata records
+
+Per analyst:
+
+- `Tier: <tier>` — actual tier the analyst ran on (`junior` | `standard` | `senior` | `senior-1m`).
+- `Tier path: <path>` — `default` | `gradient: standard→senior` | `gradient: senior→senior-1m` | `scout-direct: senior-1m` | `user-directive`.
+- `Effort: <effort>` — actual effort the analyst ran at (`default` | `high` | `max`).
+- `Effort path: <path>` — `default` | `closed-list-trigger: <name>` | `user-directive`.
+- Resolution warnings when harness couldn't honor the requested tier or effort.
 
 ## Common mistakes
 
@@ -285,4 +368,7 @@ If the user explicitly overrides model tiers for this run, honor the override an
 - **Auto-resolving `Depends-on:` findings when the upstream cluster merges.** The edge is a prompt to check, not a conclusion. See `synthesis.md` §11.
 - **Silent scope expansion during fix work.** When a cluster's fix must touch adjacent files to pass a verification gate, document every extra file under an `Incidental fixes` section in the commit message. See `synthesis.md` §12.
 - **Quoting secrets.** Describe presence, never contents.
+- **Ignoring the Scout's Senior-1M recommendation in Step 2.** When the Scout emits `Recommend senior-1m for: <analyst-list>` (high-confidence, not `confidence: low`), the orchestrator dispatches those analysts directly at Senior-1M. Skipping the recommendation defeats Path B and forces Path A's wasteful first-pass-then-escalate cost on runs the Scout already predicted would need it. The only valid reason to ignore is `confidence: low`.
+- **Falling back to Standard when "Senior" is requested but only Senior-1M exists in the harness.** The collapsed-senior topology (personal plans) exposes only one senior-class model. Treat that model as BOTH Senior and Senior-1M. Never silently downgrade a Senior request to Standard merely because the small-context Senior variant doesn't exist — that weakens the analysis on work the spec explicitly marked as needing senior reasoning. See Model-selection section's resolution rule.
+- **Silently dropping an effort recommendation when the harness exposes only default effort.** If the skill recommends `max` effort and the harness can't pass that through, log `Effort resolution: max requested; harness exposes only default; ran at default` in Run metadata. Don't strip the request; the retrospective needs the data to detect when effort-capped harnesses degraded analysis quality.
 - **Running anything outside the Coverage & Profiling Analyst.** No `bun test`, no `npm run build`, no migrations, no scripts run by any other analyst — and no bench commands run by anyone in v3.9+. The Coverage & Profiling Analyst is the single execution exception. Static reading only for everyone else.
