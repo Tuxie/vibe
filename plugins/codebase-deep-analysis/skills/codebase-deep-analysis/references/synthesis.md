@@ -86,11 +86,20 @@ QUAL-1 [x] (backend) src/lib/server/enrichment.ts:120 — see finding #4
 QUAL-1 [x] (frontend) clean — sampled all components under src/lib/components
 ```
 
+Frontend/Styling joint items (`FE-1`, `FE-6`, `FE-7`, `FE-8`, `FE-21`, `FE-22`, `FE-23`, `A11Y-3`, `UX-1`, `PERF-2`) follow the same pattern with the Styling Analyst lens-split documented in `agent-roster.md`:
+
+```
+FE-1 [x] (frontend) src/components/Header.tsx:42 — inline style on tag suggests missing prop typing
+FE-1 [x] (styling) src/components/Header.tsx:42 — one of 47 magic colors; consolidate via tokens
+```
+
 The findings themselves dedup by anchor per §2; ownership collision is a checklist-display concern, not a findings concern.
 
 ## 5. Promote cross-cutting themes
 
 If the same pattern appears in **≥3 distinct files across ≥2 agents** after right-sizing, create a theme entry:
+
+The Styling Analyst's optional `### System inventory` block (z-index inventory, magic-number census, custom-property roll-up, breakpoint vocabulary, selector-to-markup x-ref — see `styling-prepass.md`) feeds this step directly. An inventory entry that recurs across ≥2 source files is a theme candidate; promote it the same way as analyst findings, with `Raised by: Styling Analyst (system inventory)` as the attribution.
 
 ```
 - **Theme: {name}** — {pattern description}. {N} occurrences across {M} files.
@@ -117,7 +126,7 @@ Each fix-session cluster becomes its own report file (`clusters/NN-{slug}.md`). 
 4. **Apply floor rule.** Merge singleton clusters (1 finding) into the nearest topical cluster by default. A singleton survives only when **all** hold: (a) its fix is genuinely a self-contained session, (b) no other cluster shares its file or subsystem, AND (c) no other cluster shares its decision axis (autofix vs. needs-decision vs. needs-spec). "Topically isolated but small" is not enough — merge upward to the weakest adjacent cluster rather than ship a singleton. Expect ≤1 singleton per 10 clusters after synthesis. If 3+ unrelated findings have no better topical home but share severity band and decision axis, batch them into an explicit honest catch-all cluster (`server-low-cleanup`, `security-low-defenses`) and say so in `Notes:`; this is different from an accidental `misc-{severity}` fallback.
 5. **Same-file, different-work-shape.** When two candidate clusters touch the same file but have distinct decision axes (parse hygiene vs. auth policy; type safety vs. error handling), split only if one is autofix-ready and the other is needs-decision (batching interviews matters more than batching commits). If both are autofix-ready, or both are needs-decision on the same subsystem, merge — they will ship in one commit anyway. Record the merge rationale in the cluster's `Notes:`.
 6. **Mechanical-cluster sanity check.** For clusters tagged `Autonomy: autofix-ready` with >3 findings, the cluster file's `Suggested session approach` block **must** walk at least one concrete implementation sketch — name the shape of the fix for the most non-trivial finding. "Mechanical substitution" alone is insufficient if any finding involves type narrowing, lifecycle changes, cross-module refactoring, or interaction with a pinned toolchain. If synthesis cannot sketch the shape, downgrade cluster `Autonomy` to `needs-decision`.
-7. **Name clusters.** Use kebab-case slugs that describe the work, not the area (`swap-console-log-for-pino`, not `logging`). Prefix numbering reflects recommended fix order (Critical/High first, independent clusters before dependent ones).
+7. **Name clusters.** Use kebab-case slugs that describe the work, not the area (`swap-console-log-for-pino`, not `logging`). Prefix numbering reflects recommended fix order (Critical/High first, independent clusters before dependent ones). The Styling Analyst uses a closed cluster-hint vocabulary (documented in its prompt) to prevent slug sprawl on visual-layer findings — `z-stack-cleanup`, `cascade-spaghetti`, `design-token-consolidation`, `breakpoint-unification`, `dead-styles`, `tailwind-config-cleanup`, `css-in-js-render-path`, `shorthand-longhand-bugs`, `style-system-consolidation`, `nesting-and-specificity`, `scope-leak-fix`, `style-dedup-and-base-classes`, `class-naming-pass`, `inline-style-and-important`, `palette-and-contrast`, `css-bundle-trim`. Same-hint findings from Frontend and Styling merge during reshape (step 2 above). Future analysts may adopt the closed-vocabulary pattern; this is not a cross-skill registry, just per-analyst prompt discipline.
 8. **Record per-cluster metadata:**
 
 ```
