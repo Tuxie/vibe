@@ -183,6 +183,58 @@ Pre-release surface:
 
 Recommend `yes` when **both** are present. Synthesis uses this to decide whether to emit a `## Pre-release verification checklist` section in the report README.
 
+## Senior-1M tier recommendations (optional)
+
+The skill supports a Senior-1M model tier — a senior-class model with the harness's largest available context window — for analyst dispatches where 200k context is genuinely insufficient. Most runs do not need it. This section emits **either** a recommendation list **or** `Recommend senior-1m for: none`; do not omit the section entirely.
+
+Apply these criteria mechanically. Do **not** recommend on subjective grounds ("complex", "hard to reason about", "looks tangled"). Vibes-based recommendations are explicitly out of scope and will be rejected by the orchestrator.
+
+**Trigger criteria (any one is sufficient for the named analyst; multiple analysts may be recommended):**
+
+1. **Single-analyst scope >300k non-vendored LOC.** Compute the analyst's declared scope (from `agent-roster.md` scope-globs) intersected with the file inventory you produced. Exclude `node_modules/`, `vendor/`, `dist/`, `build/`, generated files, and lockfiles. If any single analyst's scope LOC exceeds 300k, recommend that analyst for Senior-1M.
+
+2. **Polyglot single-analyst scope.** When a single analyst's scope spans ≥4 distinct language families (e.g., Backend Analyst on a repo where backend code spans Go services + Python ML + Rust core + TypeScript edge — 4 families). Cross-module reasoning across this many idioms benefits from larger context. Use the language-family classification you produced in the "Tech stack" section above.
+
+3. **Mid-large monorepo cross-cutting Security.** When project total non-vendored LOC >1M AND `security-surface: present`. Security Analyst spans the entire repo by definition; on a 1M+ LOC enterprise monorepo the standard 200k context fragments security reasoning.
+
+4. **Synthesis pre-prediction.** Estimate whether the project's tier + scope + analyst count will produce a synthesis input above 100k tokens. The estimate: `expected_findings ≈ tier_factor × analyst_count × file_count_factor` where `tier_factor` is {T1: 0.5, T2: 1.0, T3: 2.0}, `analyst_count` is the post-applicability-pruning count, and `file_count_factor ≈ log10(non_vendored_files)`. If `expected_findings × 500` (rough chars-per-finding-block) exceeds 350k characters (≈100k tokens), recommend `synthesis` for Senior-1M. The orchestrator's synthesis-specific auto-escalation rule (in `SKILL.md`) provides the same trigger — either path satisfies it.
+
+**Borderline evidence — emit `confidence: low`.**
+
+When evidence is right at a threshold (LOC at 290k–310k, language-family count at 3 with one borderline-vendored language, monorepo at 900k–1.1M LOC, synthesis estimate within 10% of the 100k threshold), emit the recommendation but flag it: `Reason: ...; confidence: low`. The orchestrator defers low-confidence recommendations to Path A's gradient (existing post-hoc escalation) rather than dispatching directly at Senior-1M, but logs the deferred recommendation so the retrospective can record whether ignoring it cost quality.
+
+### Output shape
+
+```
+Recommend senior-1m for: {analyst-name-list, or "none"}
+Reason: {one bullet per recommended analyst — the specific evidence; include "; confidence: low" if borderline}
+```
+
+Examples:
+
+```
+Recommend senior-1m for: none
+```
+
+```
+Recommend senior-1m for: Backend Analyst
+Reason: Backend scope is 412k non-vendored LOC across src/server/**, src/lib/server/**, and api/** (criterion 1).
+```
+
+```
+Recommend senior-1m for: Security Analyst, synthesis
+Reason:
+- Security Analyst: project total 1.4M non-vendored LOC AND security-surface: present (criterion 3).
+- synthesis: T3 + 11 active analysts + ~140 files-per-analyst-avg = synthesis estimate ≈120k tokens (criterion 4).
+```
+
+```
+Recommend senior-1m for: Frontend Analyst
+Reason: Frontend scope is 287k non-vendored LOC; close to threshold (criterion 1); confidence: low.
+```
+
+The orchestrator reads this block in Step 2 and dispatches accordingly. Most projects will emit `Recommend senior-1m for: none` — the criteria are intentionally tight.
+
 ## Notable oddities
 
 Short list. Examples worth flagging:
