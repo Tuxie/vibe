@@ -73,6 +73,7 @@ Produce these sub-analyses without invoking anything:
    - Files at 0% line coverage (COV-1 — upgrade Confidence from Plausible to Verified).
    - Public-surface entry points at <20% (COV-2).
    - Coverage config that visibly excludes large real chunks (COV-3 — upgrade or augment the static-pass version).
+   - When many files share the same uncovered-path shape, group them into one thematic finding (for example, "cleanup/error-recovery paths across watcher + metrics") instead of one finding per file. Keep per-file numbers in the evidence. Prefer one actionable coverage theme over a dashboard of percentages unless a single file is uniquely important.
 3. **Threshold-fulfillment check.**
    - Compute the **derived recommended floor** even if a threshold is documented: `max(tier_floor, current_line_coverage − 5pp)` where `tier_floor = { T1: 50, T2: 65, T3: 80 }`. Line coverage only.
    - **If a threshold is documented** (from static-pass step 4): compare current line coverage against the documented threshold. If `current < documented`, file COV-6 *Coverage below documented threshold* with severity scaled to project tier (T1 = Low, T2 = Medium, T3 = High). Body cites both numbers.

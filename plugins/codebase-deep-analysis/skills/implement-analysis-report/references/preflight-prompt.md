@@ -9,9 +9,10 @@ Gather these before the user sees anything — the prompt itself shows summarize
 1. **Report directory.** Either passed as the skill's argument or defaulted to the newest `docs/code-analysis/*/` directory. Verify it exists and contains a recognizable layout (`README.md` + `clusters/` dir, `REPORT.md` with `<!-- cluster:NN:start -->` markers, or `README.md` + no clusters — fail cleanly if none).
 2. **cda version compatibility.** Read `{report-dir}/.scratch/codebase-map.md` first line or look for the v3+ frontmatter fields in any cluster (`Autonomy:`, `informally-unblocks:`). Abort with a clear message if the report predates v3.0.
 3. **Dependencies installed.** Probe the harness for `superpowers:subagent-driven-development`. If not discoverable, abort before any user interaction.
-4. **Cluster enumeration.** Walk every cluster (full-multi-file: `clusters/*.md`; compact-multi-file: same; single-file: parse `<!-- cluster:NN:start -->` / `<!-- cluster:NN:end -->` blocks from `REPORT.md`). For each cluster collect: slug, goal, **Status**, Autonomy, Depends-on, informally-unblocks, Pre-conditions, per-cluster `gate:` override (if any), needs-decision question (from Suggested session approach block). Also partition the collected list into two groups:
+4. **Cluster enumeration.** Walk every cluster (full-multi-file: `clusters/*.md`; compact-multi-file: same; single-file: parse `<!-- cluster:NN:start -->` / `<!-- cluster:NN:end -->` blocks from `REPORT.md`). For each cluster collect: slug, goal, **Status**, Autonomy, Depends-on, informally-unblocks, Pre-conditions, `Cluster-snapshot-sha` if present, per-cluster `gate:` override (if any), needs-decision question (from Suggested session approach block). Also partition the collected list into two groups:
    - **Active**: `Status` ∈ {`open`, `in-progress`}. Eligible for the default `all` subset.
    - **Terminal**: `Status` ∈ {`closed`, `partial`, `deferred`, `resolved-by-dep`}. Excluded from the default `all` subset; only processed if the user sets `include-terminal: true`.
+   - **Quota-risk**: active clusters whose frontmatter says `Est. session size: Large`, whose `model-hint:` is `senior-1m`, or whose `Files touched` section names a source file >800 lines. Surface these in the prompt as token/quota risk, not as blockers. Offer two choices in the cluster-subset notes: process as planned, or split/defer that cluster explicitly.
 5. **Gate detection.** Read `package.json` scripts, top-level `Makefile`, `justfile`, `Taskfile*`, `pyproject.toml` `[tool.*.scripts]`. Build the baseline set per `gate-detection.md` rules.
 6. **Test-directory classification.** Read the project's typecheck config (`tsconfig.check.json`, `tsconfig.test.json`, `tsconfig.json`) and/or test runner config (`jest.config.*` `testPathIgnorePatterns`, `pytest.ini` `testpaths`, `vitest.config.*` `test.include`, etc.). For each test directory discovered in the project, classify:
    - `tsc-checked: true` — directory is included in the typecheck config's `include` pattern
@@ -30,7 +31,7 @@ Gather these before the user sees anything — the prompt itself shows summarize
 
    This is read by Step 2's cluster subagent via `{TEST_DIR_CLASSIFICATION}` so subagents placing new tests pick the right destination without asking.
 
-7. **Current branch and working-tree state.** `git rev-parse --abbrev-ref HEAD`, `git status --porcelain`. Needed to surface warnings in the prompt (uncommitted changes + non-current-branch strategy = warning; uncommitted changes + current-branch strategy = warning; clean tree = no warning).
+7. **Current branch and working-tree state.** `git rev-parse --abbrev-ref HEAD`, `git rev-parse HEAD`, `git status --porcelain`. Needed to surface warnings in the prompt (uncommitted changes + non-current-branch strategy = warning; uncommitted changes + current-branch strategy = warning; clean tree = no warning). If any active cluster has `Cluster-snapshot-sha:` and it differs from current `HEAD`, surface a report-drift warning with the affected cluster slugs; this is informational, not a blocker.
 
 ## Prompt structure
 
@@ -46,6 +47,10 @@ All active clusters (default)
   [will process {N_active} open / in-progress clusters in topological Depends-on order]
   [{N_terminal} terminal-state clusters (closed / partial / deferred / resolved-by-dep)
    are skipped — set `include-terminal: true` to re-attempt them]
+  [{N_quota_risk} active clusters look token-heavy (Large, senior-1m, or >800-line source file).
+   They can run as planned, but consider listing them separately if quota is tight.]
+  [{N_snapshot_drift} active clusters were analyzed at a different commit than current HEAD.
+   Review drift before proceeding if those clusters touch recently changed code.]
 Only specific clusters
   [user lists slugs; the rest stay untouched; terminal-state slugs in the list
    warn and require `include-terminal: true` to proceed]
@@ -120,6 +125,8 @@ PREFLIGHT_DECISIONS = {
     "02-webgl-harness": "auto-defer" | "spec: <free text>",
     ...
   },
+  "quota_risk_clusters": ["08-file-scanner-split", ...],
+  "snapshot_drift_clusters": ["01-render-bugs", ...],
   "branch_strategy": "new-branch" | "current-branch" | "worktree",
   "branch_name": "fix/deep-analysis-2026-04-21",  # derived when relevant; reused if already exists on resumption
   "gates": {

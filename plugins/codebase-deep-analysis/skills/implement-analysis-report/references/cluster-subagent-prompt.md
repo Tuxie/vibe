@@ -14,7 +14,8 @@ Placeholders to fill:
 - `{DECISION_ANSWER}` — from `PREFLIGHT_DECISIONS.decisions[slug]` (empty string for autofix-ready clusters)
 - `{NEEDS_SPEC_TEXT}` — from `PREFLIGHT_DECISIONS.needs_spec_handling[slug]` when value starts with `spec:` (empty otherwise)
 - `{ATTRIBUTION_CLUSTER}` — from frontmatter `attribution:` (empty when absent)
-- `{MODEL_HINT}` — from frontmatter `model-hint:` (one of `junior` / `standard` / `senior`; default `standard` when absent). Orchestrator uses this to select the subagent model tier at dispatch time. Unknown legacy values are treated as `standard`.
+- `{MODEL_HINT}` — from frontmatter `model-hint:` (one of `junior` / `standard` / `senior` / `senior-1m`; default `standard` when absent). Orchestrator uses this to select the subagent model tier at dispatch time. Unknown legacy values are treated as `standard`.
+- `{TOOLING_NOTES}` — optional per-cluster operational notes from frontmatter or preflight, such as package-manager lockfile regeneration requirements. Empty when absent.
 - `{TEST_DIR_CLASSIFICATION}` — the `PREFLIGHT_DECISIONS.test_dir_classification` map as a compact table (one row per test dir with `tsc_checked` and `notes`). Subagent consults this when its implementation adds a new test file.
 - `{PROJECT_WORKING_TREE}` — absolute path to project root
 
@@ -41,6 +42,7 @@ Produce the code changes named in the cluster's Findings section. When done, ret
 - Decision answer (if the cluster is needs-decision): {DECISION_ANSWER}
 - User-supplied spec (if the cluster is needs-spec and user answered now): {NEEDS_SPEC_TEXT}
 - Attribution cluster (if this is a fuzz-gap cluster catching another cluster's bug): {ATTRIBUTION_CLUSTER}
+- Tooling notes: {TOOLING_NOTES}
 - Test-directory classification (where new tests should go): {TEST_DIR_CLASSIFICATION}
 - Project working tree: {PROJECT_WORKING_TREE}
 
@@ -61,6 +63,7 @@ When your implementation adds a new test file, choose the destination directory 
 - Use TDD per superpowers:subagent-driven-development — write failing test, implement, verify locally.
 - Touch only what the findings justify, plus the minimum scope expansion needed to unblock a verification gate (per cda synthesis §12). Any expansion must be recorded (see Output contract below).
 - Read before editing. Follow existing patterns.
+- If the cluster touches `package.json`, dependency manifests, or lockfiles, verify the repo's package-manager behavior before assuming a lockfile update is complete. For Bun projects, plain `bun install` may not prune removed dependencies from `bun.lock`; a clean reinstall can be needed, but do not delete `node_modules` or lockfiles unless the cluster or orchestrator explicitly permits that operation.
 
 ## What you do NOT do
 

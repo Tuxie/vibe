@@ -206,6 +206,7 @@ See `references/synthesis.md`. Summary of what happens here:
    - `Autonomy: <weakest-constituent>` — `needs-spec` > `needs-decision` > `autofix-ready`
    - empty `Resolved-in:`
    - `Depends-on:` / `informally-unblocks:` / `Pre-conditions:` / `attribution:` populated by synthesis where applicable
+   - `Cluster-snapshot-sha:` populated with the git `HEAD` the report was rendered against, when available, so `implement-analysis-report` can warn about report-to-fix drift later
 
 3. **Copy status scripts into `{report-dir}/scripts/`** (chmod +x): `render-status.sh` and `validate-frontmatter.sh`. This makes the report directory self-contained — the fix coordinator can run `./scripts/render-status.sh .` from inside the report dir without the skill repo on disk, and the renderer will fail before rewriting the index if cluster metadata is malformed. All three modes do this copy.
 

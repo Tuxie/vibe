@@ -90,7 +90,7 @@ Answer each with `present` / `absent` plus one-line evidence. These prune analys
 - `frontend` — any UI framework, HTML/CSS pipelines, or client bundles.
 - `database` — schema, migrations, ORM models, or query-builder usage.
 - `tests` — any directory or naming convention indicating tests.
-- `security-surface` — any of: authn/authz code, HTTP/RPC endpoints that accept external input, file IO on user input, subprocess spawning, deserialization of untrusted data, crypto usage, network clients.
+- `security-surface` — any of: authn/authz code, HTTP/RPC endpoints that accept external input, file IO on user input, subprocess spawning, deserialization of untrusted data, crypto usage, P2P ingestion, network clients, or code that shells out based on project/user state. Do not center this flag on auth; a no-auth local app with subprocess + file IO + network/P2P input still has a security surface.
 - `tooling` — CI/CD config, Dockerfiles, build scripts, dev scripts, Makefiles, deploy configs.
 - `docs` — any of `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `docs/*`.
 - `container` — Dockerfile / Containerfile / OCI build present.
@@ -129,8 +129,9 @@ The velocity scaling is load-bearing: a repo averaging >5 commits/day churns fas
 
 1. Grep the doc for file-path-shaped references: lines matching `\bsrc/[a-zA-Z_][a-zA-Z0-9_/.-]+\b`, `\bapp/…`, `\btests?/…`, `\bpackages/…`, `\b(?:lib|internal|cmd|pkg|api)/…` (adapt to the repo's top-level directories).
 2. For each distinct referenced path (up to ~20), check existence via `rg --files | grep -Fx <path>` or `ls <path>`. Count `present` vs. `missing`.
-3. If `missing / total ≥ 0.20` (≥20% of referenced paths are gone or moved), structural-signal is **dirty**. Otherwise **clean**.
-4. Cap at 20 references checked per doc to bound scout cost. If a doc references >20 paths, sample uniformly; do not skip this signal.
+3. Cross-check claimed entrypoint/framework paths against the actual top-level inventory you already built. If the doc names a removed path such as `src/index.html` while the repo's real frontend entrypoint lives under `frontend/src/`, mark that as missing even if the doc was recently touched. Structural drift includes stale *claims about paths that no longer exist*, not only old timestamps.
+4. If `missing / total ≥ 0.20` (≥20% of referenced paths are gone or moved), structural-signal is **dirty**. Otherwise **clean**.
+5. Cap at 20 references checked per doc to bound scout cost. If a doc references >20 paths, sample uniformly; do not skip this signal.
 
 ### Signal 3 — content default drift
 
@@ -188,6 +189,8 @@ Recommend `yes` when **both** are present. Synthesis uses this to decide whether
 The skill supports a Senior-1M model tier — a senior-class model with the harness's largest available context window — for analyst dispatches where 200k context is genuinely insufficient. Most runs do not need it. This section emits **either** a recommendation list **or** `Recommend senior-1m for: none`; do not omit the section entirely.
 
 Apply these criteria mechanically. Do **not** recommend on subjective grounds ("complex", "hard to reason about", "looks tangled"). Vibes-based recommendations are explicitly out of scope and will be rejected by the orchestrator.
+
+**Small-repo fast path.** If code-only non-vendored LOC <50k AND language-family count <3, emit `Recommend senior-1m for: none` immediately with reason `small repo, below all Senior-1M triggers`. Do not walk the four detailed criteria in prose. This is the common T1/T2 case and the detailed trigger audit adds noise without changing the answer.
 
 **Trigger criteria (any one is sufficient for the named analyst; multiple analysts may be recommended):**
 

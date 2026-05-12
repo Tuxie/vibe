@@ -42,6 +42,13 @@ Anchor severities against these examples rather than deriving from abstract prin
 
 Severities are relative to the project tier. "Missing retry on local CLI" is Low; "missing retry on payment service" is High. When in doubt pick one step lower than instinct — synthesis will escalate if another analyst saw it harder.
 
+Accessibility anchors:
+
+- Missing visible focus indicator on keyboard-reachable controls: Medium when the UI is user-facing; Low only for clearly internal/prototype surfaces with few controls.
+- Missing skip link or broken heading hierarchy on a page with repeated navigation: Low for T1/T2, Medium when the page is a primary workflow or public entrypoint.
+- Contrast below WCAG AA for normal-weight body text or form labels: Medium when rendered in an actual component state; Low when only a dormant token combination is affected.
+- Missing dialog focus trap / restore-focus behavior: Medium when the dialog can be opened from keyboard; High only when it blocks a critical or security-sensitive workflow.
+
 ### Local-first calibration
 
 If the Scout's applicability flags include `web-facing-ui: present, local-only` (desktop app, localhost-only dev server, LAN-only tool), apply these anchors **instead of** the generic public-surface ones for any network-boundary finding. Local-first tools have a different attacker model: the attacker is either on the same host (very limited attack value) or on the same LAN (intentional for some use cases, accidental for others).

@@ -98,7 +98,7 @@ validate_record() {
   esac
 
   case "${model}" in
-    ""|junior|standard|senior) ;;
+    ""|junior|standard|senior|senior-1m) ;;
     *) err "${source}: invalid model-hint '${model}'" ;;
   esac
 
@@ -194,7 +194,7 @@ validate_single() {
 
     if [[ "${in_block}" -eq 1 ]]; then
       case "${line}" in
-        "Status:"*|"Autonomy:"*|"Resolved-in:"*|"Depends-on:"*|"informally-unblocks:"*|"Pre-conditions:"*|"attribution:"*|"Commit-guidance:"*|"model-hint:"*|"Deferred-reason:"*|"Resolving-cluster:"*)
+        "Status:"*|"Autonomy:"*|"Resolved-in:"*|"Depends-on:"*|"informally-unblocks:"*|"Pre-conditions:"*|"attribution:"*|"Commit-guidance:"*|"Cluster-snapshot-sha:"*|"model-hint:"*|"Deferred-reason:"*|"Resolving-cluster:"*)
           frontmatter+="${line}"$'\n'
           ;;
       esac

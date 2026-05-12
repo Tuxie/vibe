@@ -152,6 +152,8 @@ Populate `model-hint:` on every cluster. Use these rules; the field is not user-
 
 - **Default:** `standard`.
 - **Downgrade to `junior` when ALL hold:** `Autonomy: autofix-ready`, highest-severity-in-cluster is Low, no finding involves type narrowing (`any → unknown`, generic constraint changes, union refinement), no finding involves async/lifecycle changes (signal handling, cancellation, race fixes), no finding touches cross-module refactoring (shared-abstraction extraction, module split/merge).
+  - Good junior examples: remove a duplicate CSS keyframe, delete an unused token, rename an obviously stale docs heading, or replace one inline style with an already-existing class when no behavior or typing changes.
+  - Keep `standard` for anything that touches lifecycle hooks, async completion, security-sensitive paths, generated lockfiles, package-manager behavior, or files the project instructions mark as fragile.
 - **Upgrade to `senior` when ALL hold:** `Autonomy: needs-spec`, highest-severity-in-cluster is High or Critical, cluster spans >5 distinct files, AND the fix requires maintainer interview + spec design synthesized into code. `senior` is the expensive option — reserve for clusters where the standard tier would likely return shape B ("cannot implement without further decision").
 - **Upgrade to `senior-1m` when ALL hold (v3.10):** `Autonomy: needs-spec`, highest-severity-in-cluster is High or Critical, AND **either** cluster spans >15 distinct files **OR** cluster's source-file footprint exceeds an estimated 50k LOC (e.g., entire backend module rewrite, cross-package monorepo refactor). The fix subagent needs to hold the entire affected subsystem in context simultaneously — standard 200k context fragments the work.
 

@@ -102,7 +102,7 @@ If a cluster has `attribution: NN-slug (caught-by: ...)` in frontmatter, the com
 
 **Cross-cluster theme detection.** After each cluster terminates (close / partial / defer), inspect the cluster's outcome against the recognized theme shapes in `references/cross-cluster-themes.md`. Append matches to `THEMES_LOG` keyed by shape tag. Before Step 3, filter `THEMES_LOG` for shapes that hit ≥2 clusters and write each to `{report-dir}/.scratch/implement-themes.md`. Part B consumes this file in Step 5.
 
-**Per-cluster model selection.** Before dispatching the subagent, read the cluster frontmatter's `model-hint:` field if present (`junior` / `standard` / `senior`). Pass it to the subagent dispatch's model selection. Default to `standard` when the hint is missing.
+**Per-cluster model selection.** Before dispatching the subagent, read the cluster frontmatter's `model-hint:` field if present (`junior` / `standard` / `senior` / `senior-1m`). Pass it to the subagent dispatch's model selection. Default to `standard` when the hint is missing.
 
 Backward compatibility: older `codebase-deep-analysis` reports may carry vendor-specific hints. Treat unknown legacy values as `standard` before dispatch and do not write legacy values back into report files.
 

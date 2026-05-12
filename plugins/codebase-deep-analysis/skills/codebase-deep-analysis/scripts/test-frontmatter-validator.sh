@@ -72,6 +72,11 @@ write_multi_report "${valid_multi}"
 write_cluster "${valid_multi}/clusters/01-sample.md" "open" "autofix-ready"
 assert_passes "valid-multi" bash "${validator}" "${valid_multi}"
 
+valid_senior_1m="${tmp_root}/valid-senior-1m"
+write_multi_report "${valid_senior_1m}"
+write_cluster "${valid_senior_1m}/clusters/01-sample.md" "open" "needs-spec" "model-hint: senior-1m"
+assert_passes "valid-senior-1m" bash "${validator}" "${valid_senior_1m}"
+
 missing_status="${tmp_root}/missing-status"
 write_multi_report "${missing_status}"
 cat > "${missing_status}/clusters/01-sample.md" <<'EOF'

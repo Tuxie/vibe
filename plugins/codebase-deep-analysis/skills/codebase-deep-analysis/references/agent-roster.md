@@ -6,6 +6,8 @@ Every analyst also filters its owned checklist items by the Scout's **project ti
 
 Scope globs are advisory defaults; if the Scout's map reveals the project uses different conventions, adjust per-agent before dispatch and note the override in the report's Run metadata.
 
+When dispatching Styling or Accessibility, the corresponding pre-pass addendum is **ALWAYS-APPEND** material. The orchestrator must append the fenced inner block from `styling-prepass.md` to Styling and from `accessibility-prepass.md` to Accessibility. Do not rely on the analyst to discover these files independently.
+
 If the user explicitly overrides analyst model tiers for the run, apply that override and record `Analyst override: per user request, <scope of analysts> ran on <model/tier>` in Run metadata. The roster's default tiers still document the baseline and still inform any later "already senior vs. needs senior re-dispatch" decision.
 
 | Agent | Default model tier | In-scope paths / patterns | Owned checklist IDs |
