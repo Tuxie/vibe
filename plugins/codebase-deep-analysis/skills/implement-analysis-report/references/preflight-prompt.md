@@ -116,7 +116,8 @@ After the user's final answer, record a `PREFLIGHT_DECISIONS` object in working 
 PREFLIGHT_DECISIONS = {
   "cluster_subset": "all" | "only: [slug, slug]" | "all-except: [slug, slug]",
   "include_terminal": false,   # default; when true, clusters in terminal Status are eligible for re-attempt
-  "session_number": 1,         # computed by scanning analysis-analysis.md for prior `## Part B ... (session N, ...)` headings and picking N+1
+  "session_number": 1,         # computed by scanning retrospective/implementation/session-* directories and picking max+1
+  "session_dir": "retrospective/implementation/session-01",
   "decisions": {
     "04-auth-rewrite": "answer text",
     ...
@@ -160,5 +161,5 @@ If the user does not respond to the primary prompt, exit cleanly with a message:
 - **Re-asking a decision mid-run.** Every `needs-decision` cluster's question lives here or nowhere.
 - **Silently defaulting a branch on a dirty tree.** If the tree has uncommitted changes AND the user picks `current-branch`, show a warning line in the prompt and require explicit confirmation. Do not auto-stash.
 - **Including terminal-state clusters in `all` by default.** Resumption must be safe. Auto-filter terminal-state clusters from the default `all` subset; surface the count so the user knows what was skipped; require explicit `include-terminal: true` to re-attempt.
-- **Forgetting to compute `session_number`.** On resumption, the Part B writer needs `N+1`. Scan `analysis-analysis.md` for `^## Part B — Fix coordinator retrospective \(session (\d+)` headings and pick `max(N) + 1`. First run always yields `1`.
+- **Forgetting to compute `session_number`.** On resumption, the implementation retrospective writer needs `N+1`. Scan `retrospective/implementation/session-*`, pick `max(N) + 1`, and derive `session_dir` from it. First run always yields `01`.
 - **Recreating an existing branch on resumption.** If `branch_strategy = new-branch` AND the computed `branch_name` already exists, `git checkout` it and fast-forward if possible. Only abort if the branch is in a state incompatible with continued work (e.g., diverged from origin in a way git won't fast-forward).

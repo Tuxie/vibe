@@ -30,7 +30,7 @@ Dispatch parallel Explore subagents to analyze every **applicable** layer of the
 | `references/synthesis.md` | Dedup, right-sizing filter, hybrid clustering (incl. singleton floor, same-file split/merge, mechanical sanity check, fuzz attribution), severity resolution, Executive Summary, Depends-on handling, scope-expansion rules |
 | `references/report-template.md` | Three rendering modes (single-file / compact multi-file / full multi-file) with cluster frontmatter schema (`Status:`, `Autonomy:`, `Resolved-in:`, `Depends-on:`, `informally-unblocks:`, `Pre-conditions:`, `attribution:`) |
 | `references/coverage-profiling-prompt.md` | Prompt for the Coverage & Profiling Analyst (dispatched in Step 3 alongside the other analysts); contains the only execution exception in the skill, the threshold-derivation rule for COV-6, and the COV-4 / COV-5 emission logic |
-| `references/analysis-analysis-template.md` | Two-part retrospective template (runner + fix coordinator) written **to the next skill version's author** — primary RED-phase input for v-next |
+| `references/retrospective-template.md` | Retrospective bundle contract for both the analysis run and later implementation sessions — primary RED-phase input for v-next |
 | `scripts/render-status.sh` | Rebuilds the cluster-index block from each cluster's `Status:` / `Autonomy:` fields. Copied into the report directory at Step 5 so the fix coordinator can run it without the skill repo on disk. |
 | `scripts/validate-frontmatter.sh` | Validates cluster frontmatter before the index is regenerated; `render-status.sh` calls it automatically when present. |
 | `VERSION` | Stable skill version string; used by Step 6's revision-capture fallback chain when the skill is loaded from a plugin cache without `.git/`. |
@@ -46,7 +46,7 @@ digraph analysis_flow {
     "Step 3 — Dispatch analysts (parallel, incl. Coverage & Profiling)" [shape=box];
     "Step 4 — Synthesis: dedup + right-size + cluster" [shape=box];
     "Step 5 — Render report directory" [shape=box];
-    "Step 6 — Retrospective (analysis-analysis.md, Part A)" [shape=box];
+    "Step 6 — Retrospective bundle" [shape=box];
     "Done" [shape=doublecircle];
 
     "Start" -> "Step 0 — Preflight";
@@ -55,8 +55,8 @@ digraph analysis_flow {
     "Step 2 — Scope resolution (prune by applicability + tier)" -> "Step 3 — Dispatch analysts (parallel, incl. Coverage & Profiling)";
     "Step 3 — Dispatch analysts (parallel, incl. Coverage & Profiling)" -> "Step 4 — Synthesis: dedup + right-size + cluster";
     "Step 4 — Synthesis: dedup + right-size + cluster" -> "Step 5 — Render report directory";
-    "Step 5 — Render report directory" -> "Step 6 — Retrospective (analysis-analysis.md, Part A)";
-    "Step 6 — Retrospective (analysis-analysis.md, Part A)" -> "Done";
+    "Step 5 — Render report directory" -> "Step 6 — Retrospective bundle";
+    "Step 6 — Retrospective bundle" -> "Done";
 }
 ```
 
@@ -64,7 +64,7 @@ digraph analysis_flow {
 
 **Design rule: Step 0 is the only step that may prompt the user.** A single confirmation gate at the start lets the user proceed, abort, or issue free-text instructions/questions. After that, the rest of the run — Steps 1 through 6 — executes unattended. A user should be able to kick off this skill before going to bed and wake up to a finished report.
 
-1. **Capture the skill's own revision up-front** (see Step 6 for the fallback chain). Keep the value in the orchestrator's working memory so it lands in `analysis-analysis.md` even if the skill repo becomes unavailable partway through.
+1. **Capture the skill's own revision up-front** (see Step 6 for the fallback chain). Keep the value in the orchestrator's working memory so it lands in the retrospective bundle even if the skill repo becomes unavailable partway through.
 
 2. **Load deferred tools.** `AskUserQuestion`, `TaskCreate`, and `TaskUpdate` may be deferred tools in your harness (visible by name in a `<system-reminder>` but not callable until their schemas load). If a tool call fails with `InputValidationError`, run `ToolSearch` with `select:AskUserQuestion,TaskCreate,TaskUpdate` first, then retry. This is cheap and saves a round-trip at the consent prompt.
 
@@ -224,7 +224,7 @@ The report is a living artifact. The fields the user is expected to edit by hand
 - Fill `Resolved-in:` with the commit SHA or release tag that resolved the cluster. For `partial`, use form `SHA (partial — <blocker>)` — e.g., `SHA (partial — bunx playwright blocked on Bun 1.4)`.
 - Update `Autonomy:` only if it changes materially during fix work (rare — usually the synthesis-assigned value holds).
 - After any edit, from inside the report directory run `./scripts/render-status.sh .` to rebuild the index block. **Do not hand-edit the index** — it will drift from the cluster files immediately. `render-status.sh` first runs `./scripts/validate-frontmatter.sh .` when present and refuses to rewrite the index until malformed metadata is fixed. Both scripts were copied into the report directory at Step 5 so you do not need the skill repo on disk.
-- When the last cluster closes, defers, or stalls, append **Part B** of `analysis-analysis.md` per `references/analysis-analysis-template.md`. Part B is the fix coordinator's retrospective; it is the second half of the input the v-next author needs, and nobody else is positioned to write it. If fix work is ongoing at the next invocation of the skill on this repo, write what you have so far and mark the rest open.
+- When the last cluster closes, defers, or stalls, the implementation skill writes a per-session retrospective bundle under `retrospective/implementation/session-{NN}/`. That bundle is the second half of the RED-phase input the v-next author needs.
 
 ### Deferring shaped work
 
@@ -236,16 +236,20 @@ If a project-level `PostToolUse` or git-commit hook auto-stamps `Resolved-in:` o
 
 See `references/report-template.md` "Cluster `Status` lifecycle" for the full state table (including `partial`). See `references/synthesis.md` §11 (Depends-on resolution) and §12 (scope expansion) for the two follow-on patterns that govern what fix sessions are allowed to do after the report is frozen.
 
-## Step 6 — Retrospective: write `analysis-analysis.md` (Part A)
+## Step 6 — Retrospective bundle
 
 **The skill is self-evolving. This step is how.**
 
 `tips-from-runner.md` in the skill repo was the RED-phase input for the v2 rewrite. The v3 author needs the same kind of input, but collected in-flight rather than reconstructed from memory. Step 6 produces that input every run.
 
-Immediately after Step 5 renders — **before the token-saving context decay makes details fuzzy** — write `docs/code-analysis/{stem}/analysis-analysis.md` from the template at `references/analysis-analysis-template.md`. The file has two parts:
+Immediately after Step 5 renders — **before the token-saving context decay makes details fuzzy** — create `docs/code-analysis/{stem}/retrospective/analysis/` per `references/retrospective-template.md`.
 
-- **Part A — Runner retrospective.** You (the orchestrator) fill this in now. You have just driven every step of the skill; you know where the references over-specified, where they under-specified, where the filter dropped something it shouldn't have, and what token/time cost each analyst actually incurred. Write while that memory is live. The template lists every subsection — do not skip subsections, but a truthful "nothing notable here" is an acceptable body for one.
-- **Part B — Fix coordinator retrospective.** Leave as the empty template. The person (or agent) who later coordinates fix sessions on this report appends Part B when the last cluster closes, defers, or stalls.
+Write the bundle in this order:
+
+1. Each dispatched agent writes its own retrospective file under `retrospective/analysis/agents/{agent-name}.md`.
+2. The runner writes `retrospective/analysis/agents/runner.md`.
+3. The runner writes `retrospective/analysis/summary.md`, synthesizing what the agent files collectively say.
+4. The runner writes `retrospective/analysis/suggestions.md`, containing only concrete `**cda v-next:**` carry-forward items.
 
 The audience is **the author of the next version of this skill** — a future capable agent reading this file with no context from this run **and no access to the analyzed codebase**. Write to them directly. Name files *in the skill* (references, scripts, SKILL.md sections) and quote template text verbatim; give token counts when you have them. But **anonymize everything about the analyzed project** — no repo name, no real paths, no internal service names, no secrets, no exploit-grade security detail. Replace with generic stand-ins that preserve shape (`module-A`, `the ORM layer`, `a T2 Python+TS web app`). Keep tier, stack family, rough size, analyst token counts, wall time — those are calibration signal, not identification. General advice ("be more specific") is useless; anonymized-but-specific observations ("on a T3 polyglot repo with 14 analysts the scout's 500-line budget was 2x too small") are what drives real improvements.
 
@@ -257,11 +261,11 @@ The audience is **the author of the next version of this skill** — a future ca
 
 If the skill directory path itself embeds a version-like component that disagrees with the selected source (for example a plugin cache path says `3.7.0` but `VERSION` says `3.4.0`), still follow the fallback chain above, but append the path-derived value in `Skill source:` or parentheses: `Skill revision: version:3.4.0 (path:3.7.0)`. Never prefer a path-derived version over `sha:` or `version:`; it is diagnostic context, not the revision identifier.
 
-Without this identifier the v-next author cannot diff the critiqued behavior against the exact code that produced it, and every note in the retrospective becomes guesswork. Record it in the Run identity block as `Skill revision: <source>:<value>` — e.g., `Skill revision: version:3.0.0`. See `references/analysis-analysis-template.md` "Writing rules" for the full anonymization contract.
+Without this identifier the v-next author cannot diff the critiqued behavior against the exact code that produced it, and every note in the retrospective becomes guesswork. Record it in the analysis retrospective files as `Skill revision: <source>:<value>` — e.g., `Skill revision: version:3.0.0`. See `references/retrospective-template.md` for the full bundle contract and anonymization rules.
 
 Do not skip this step. A v-next author with zero retrospectives is flying blind and will regress parts of the skill that already work. A v-next author with even one honest retrospective can focus changes on the parts that actually failed.
 
-The scratch codebase map is retained. `analysis-analysis.md` is **not** under `.scratch/` — it sits next to the report's `README.md` so the user finds it when reviewing the run, and so it is trivial to copy into the skill repo for v-next planning.
+The scratch codebase map is retained. The retrospective bundle is **not** under `.scratch/` — it sits under `retrospective/analysis/` next to the report artifacts so the user finds it when reviewing the run, and so it is trivial to copy into the skill repo for v-next planning.
 
 ## Model selection
 
@@ -360,8 +364,8 @@ Per analyst:
 - **Looking for status scripts in the skill repo during fix work.** `render-status.sh` and `validate-frontmatter.sh` are copied into each report directory at Step 5. Use the local copy — `./scripts/render-status.sh .` from inside the report dir. Absolute paths into the skill's plugin cache are a sign something went wrong at Step 5.
 - **Pasting ground rules into every analyst prompt.** The wrapper in `references/agent-prompt-template.md` tells each agent to Read `{SKILL_DIR}/references/analyst-ground-rules.md` from disk. Do not inline the ground rules — it doubles dispatch token cost for no gain.
 - **Emitting a checklist as a markdown table.** The five canonical line shapes are load-bearing infrastructure. Tables (`| Item | Status | ... |`) break synthesis §8 validation and get demoted wholesale.
-- **Skipping Step 6.** The retrospective is how the skill evolves. An empty or boilerplate `analysis-analysis.md` is worse than none — it misleads the v-next author. Write specifics while they are fresh, or say "nothing notable" honestly.
-- **Postponing Part A.** If the orchestrator defers Part A to "write it later", the useful details are already gone. Part A is a Step 6 deliverable, not a follow-up.
+- **Skipping Step 6.** The retrospective bundle is how the skill evolves. An empty or boilerplate bundle is worse than none — it misleads the v-next author. Write specifics while they are fresh, or say "nothing notable" honestly.
+- **Postponing the analysis bundle.** If the orchestrator defers these files to "write them later", the useful details are already gone. The bundle is a Step 6 deliverable, not a follow-up.
 - **Trusting Scout's applicability or tier flags blindly.** If an analyst finds evidence that an applicability flag was wrong or the tier classification mismatches reality, it says so in its Summary; synthesis re-dispatches or re-tiers.
 - **Cluster-hint sprawl.** If every finding has its own unique cluster hint, clustering collapses into one-finding-per-file and the multi-file report is useless. Keep hints to a small controlled vocabulary per run.
 - **Prompting the user anywhere outside Step 0.** Step 0 captures every decision the run needs (proceed / abort, directives) in a single confirmation gate so the run can proceed unattended. Steps 1 – 6 must not call `AskUserQuestion`. If a mid-run ambiguity arises, either resolve it with a reasonable default and log the choice in Run metadata, or fail the affected finding to `[?] inconclusive — would have required user input, deferred by unattended-run contract`.

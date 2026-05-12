@@ -1,6 +1,6 @@
 # Cross-cluster themes (Step 2 detector)
 
-During the primary pass, some frictions hit multiple clusters with the same shape. Bun `mock.module` pollution bites cluster 09 AND cluster 12; tsc cascade errors surface when cluster 13 widens a gate AND cluster 15 moves a test file. Rather than each cluster rediscovering the pattern, iar detects these repeats, logs them to `{report-dir}/.scratch/implement-themes.md`, and Part B surfaces them as first-class observations.
+During the primary pass, some frictions hit multiple clusters with the same shape. Bun `mock.module` pollution bites cluster 09 AND cluster 12; tsc cascade errors surface when cluster 13 widens a gate AND cluster 15 moves a test file. Rather than each cluster rediscovering the pattern, iar detects these repeats, logs them to `{report-dir}/.scratch/implement-themes.md`, and the implementation retrospective summary surfaces them as first-class observations.
 
 ## When the detector runs
 
@@ -88,14 +88,14 @@ before Step 3:
       append theme entry to .scratch/implement-themes.md
 ```
 
-## Part B integration
+## Implementation retrospective integration
 
-`partb-writer.md` reads `{report-dir}/.scratch/implement-themes.md` at Step 5 and includes a **`### Cross-cluster themes that emerged during fix work`** subsection in the session's Part B. Mandatory subsection — but `_none detected_` is acceptable when `implement-themes.md` is empty. Each detected theme appears verbatim from the file.
+`implementation-retrospective-writer.md` reads `{report-dir}/.scratch/implement-themes.md` at Step 5 and includes a **`## Cross-cluster themes that emerged during fix work`** section in `retrospective/implementation/session-{NN}/summary.md`. Mandatory section — but `_none detected_` is acceptable when `implement-themes.md` is empty. Each detected theme appears verbatim from the file.
 
-Themes feed both v-next audiences: the `Surface:` field on each theme points to which skill should absorb the change (cda synthesis, iar preflight, or project docs). Part B's `cda v-next:` and `iar v-next:` bullets may reference the theme by tag for traceability.
+Themes feed both v-next audiences: the `Surface:` field on each theme points to which skill should absorb the change (cda synthesis, iar preflight, or project docs). The session's `suggestions.md` may reference the theme by tag for traceability.
 
 ## Adding new theme shapes
 
 Add a shape to the catalog only when it has surfaced in ≥2 real-world iar runs. Speculative shapes bloat detection without value. The catalog is a living document in iar's `references/` — each new shape adds a section above with Signals / Tag / Surface fields.
 
-When in doubt about whether a friction is common enough to catalog: don't. A one-off curiosity belongs in Part B's prose, not in the detector.
+When in doubt about whether a friction is common enough to catalog: don't. A one-off curiosity belongs in the session `summary.md` prose, not in the detector.

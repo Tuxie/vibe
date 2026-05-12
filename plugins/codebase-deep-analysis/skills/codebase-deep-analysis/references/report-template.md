@@ -8,7 +8,7 @@ Pick a mode from the Scout's tier + total-finding-count:
 
 | Mode | Trigger | Layout |
 |------|---------|--------|
-| **Single-file** | `total findings < 15` AND tier ∈ {T1, T2} | one `REPORT.md` + `analysis-analysis.md` + `.scratch/codebase-map.md` + `scripts/` |
+| **Single-file** | `total findings < 15` AND tier ∈ {T1, T2} | one `REPORT.md` + `retrospective/analysis/` + `.scratch/codebase-map.md` + `scripts/` |
 | **Compact multi-file** | `15 ≤ total findings < 60` AND tier ∈ {T1, T2} | multi-file layout below, but `by-analyst/` collapses to a single `by-analyst.md` |
 | **Full multi-file** | `total findings ≥ 60` OR tier = T3 | full layout below, `by-analyst/` as a directory |
 
@@ -23,7 +23,14 @@ docs/code-analysis/{YYYY-MM-DD | YYYY-MM-DD-HHMMSS}/
 ├── README.md                    # Index, metadata, token warning, tier + rationale
 ├── executive-summary.md         # Top clusters per synthesis §7
 ├── themes.md                    # Cross-cutting patterns (or "none surfaced")
-├── analysis-analysis.md         # Retrospective on the skill itself (Step 6); Part A filled now, Part B appended after fix work
+├── retrospective/
+│   ├── analysis/
+│   │   ├── agents/
+│   │   │   ├── runner.md
+│   │   │   └── {agent-name}.md
+│   │   ├── summary.md
+│   │   └── suggestions.md
+│   └── implementation/         # Created later by iar as session-NN directories appear
 ├── clusters/
 │   ├── 01-{slug}.md            # Session-sized fix bundles, ordered by priority
 │   ├── 02-{slug}.md
@@ -60,7 +67,14 @@ Identical to full except `by-analyst/` is a single file:
 ```
 docs/code-analysis/{stem}/
 ├── REPORT.md                    # Everything: metadata, token warning, tier, executive summary, clusters inline, checklist, meta, not-in-scope
-├── analysis-analysis.md         # Retrospective (Step 6), same as other modes
+├── retrospective/
+│   ├── analysis/
+│   │   ├── agents/
+│   │   │   ├── runner.md
+│   │   │   └── {agent-name}.md
+│   │   ├── summary.md
+│   │   └── suggestions.md
+│   └── implementation/         # Created later by iar as session-NN directories appear
 ├── scripts/
 │   ├── render-status.sh         # Still copied; cluster status fields live inside REPORT.md
 │   └── validate-frontmatter.sh  # Still copied; validates HTML-comment frontmatter blocks
@@ -104,6 +118,8 @@ The folder slug is the date (or date + time on collision). `clusters/` numbering
 
 - [Executive summary](./executive-summary.md) — top {N} clusters
 - [Themes](./themes.md) — cross-cutting patterns
+- [Retrospective summary](./retrospective/analysis/summary.md)
+- [Retrospective suggestions](./retrospective/analysis/suggestions.md)
 - **Clusters** (ordered by recommended fix sequence; regenerate with `./scripts/render-status.sh .` from this report's directory after flipping any cluster's `Status:`; this validates frontmatter before rewriting):
 
 <!-- cluster-index:start -->

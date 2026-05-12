@@ -1,6 +1,6 @@
 ---
 name: implement-analysis-report
-description: Use when the user has a codebase-deep-analysis report directory and wants to land the recommended fixes — consolidates every decision into a single preflight interview so the run can proceed unattended overnight, delegates per-cluster implementation to superpowers:subagent-driven-development, handles showstoppers in a second pass, writes Part B of the retrospective when done
+description: Use when the user has a codebase-deep-analysis report directory and wants to land the recommended fixes — consolidates every decision into a single preflight interview so the run can proceed unattended overnight, delegates per-cluster implementation to superpowers:subagent-driven-development, handles showstoppers in a second pass, and writes a per-session implementation retrospective bundle when done
 ---
 
 # Implement Analysis Report
@@ -12,7 +12,7 @@ Consume a `codebase-deep-analysis` report directory and land the fixes cluster-b
 **Two core principles, equally important:**
 
 1. **Every user decision lands at preflight.** The skill never prompts mid-run. If ambiguity surfaces during implementation, the affected cluster defers to the showstopper list and the run continues.
-2. **The skill delegates implementation.** Per-cluster code changes are the job of `superpowers:subagent-driven-development`. iar owns preflight, planning, gate execution, revert-on-failure, frontmatter updates, `render-status.sh` invocation, and Part B.
+2. **The skill delegates implementation.** Per-cluster code changes are the job of `superpowers:subagent-driven-development`. iar owns preflight, planning, gate execution, revert-on-failure, frontmatter updates, `render-status.sh` invocation, and the per-session implementation retrospective bundle.
 
 ## References (load as needed)
 
@@ -23,7 +23,7 @@ Consume a `codebase-deep-analysis` report directory and land the fixes cluster-b
 | `references/showstopper-prompt.md` | Step 3 consolidated `AskUserQuestion` template |
 | `references/gate-detection.md` | Auto-detect verification gates from common build-system manifests |
 | `references/cross-cluster-themes.md` | Step 2 theme detector — catches frictions that hit ≥2 clusters (mock pollution, tsc cascade, enshrined tests, etc.) |
-| `references/partb-writer.md` | How to fill Part B of `analysis-analysis.md` at run completion |
+| `references/implementation-retrospective-writer.md` | How to write the per-session implementation retrospective bundle at run completion |
 | `VERSION` | Skill version string for retrospective identity |
 
 ## Compatibility
@@ -41,7 +41,7 @@ digraph iar_flow {
     "Step 2 — Primary pass" [shape=box];
     "Step 3 — Showstopper interview" [shape=box];
     "Step 4 — Second pass" [shape=box];
-    "Step 5 — Part B retrospective" [shape=box];
+    "Step 5 — Implementation retrospective bundle" [shape=box];
     "Done" [shape=doublecircle];
 
     "Start (report-dir)" -> "Step 0 — Preflight interview";
@@ -49,9 +49,9 @@ digraph iar_flow {
     "Step 1 — Plan pass" -> "Step 2 — Primary pass";
     "Step 2 — Primary pass" -> "Step 3 — Showstopper interview";
     "Step 3 — Showstopper interview" -> "Step 4 — Second pass" [label="showstoppers exist"];
-    "Step 3 — Showstopper interview" -> "Step 5 — Part B retrospective" [label="none"];
-    "Step 4 — Second pass" -> "Step 5 — Part B retrospective";
-    "Step 5 — Part B retrospective" -> "Done";
+    "Step 3 — Showstopper interview" -> "Step 5 — Implementation retrospective bundle" [label="none"];
+    "Step 4 — Second pass" -> "Step 5 — Implementation retrospective bundle";
+    "Step 5 — Implementation retrospective bundle" -> "Done";
 }
 ```
 
@@ -100,7 +100,7 @@ Sequential per cluster. For each cluster in plan order:
 
 If a cluster has `attribution: NN-slug (caught-by: ...)` in frontmatter, the commit message body names the attribution cluster but Status updates apply to THIS cluster only.
 
-**Cross-cluster theme detection.** After each cluster terminates (close / partial / defer), inspect the cluster's outcome against the recognized theme shapes in `references/cross-cluster-themes.md`. Append matches to `THEMES_LOG` keyed by shape tag. Before Step 3, filter `THEMES_LOG` for shapes that hit ≥2 clusters and write each to `{report-dir}/.scratch/implement-themes.md`. Part B consumes this file in Step 5.
+**Cross-cluster theme detection.** After each cluster terminates (close / partial / defer), inspect the cluster's outcome against the recognized theme shapes in `references/cross-cluster-themes.md`. Append matches to `THEMES_LOG` keyed by shape tag. Before Step 3, filter `THEMES_LOG` for shapes that hit ≥2 clusters and write each to `{report-dir}/.scratch/implement-themes.md`. The implementation retrospective bundle consumes this file in Step 5.
 
 **Per-cluster model selection.** Before dispatching the subagent, read the cluster frontmatter's `model-hint:` field if present (`junior` / `standard` / `senior` / `senior-1m`). Pass it to the subagent dispatch's model selection. Default to `standard` when the hint is missing.
 
@@ -118,9 +118,9 @@ If the user does not respond within a reasonable window, every showstopper is tr
 
 Only handles clusters the user chose to `resolve` in Step 3. Execution matches Step 2 with the user's new input folded into the subagent prompt. No third pass — a cluster that fails its second attempt stays `partial` with `Resolved-in: (partial — second-pass gate '{X}' still failing)`.
 
-## Step 5 — Part B retrospective
+## Step 5 — Implementation retrospective bundle
 
-See `references/partb-writer.md`. Opens `{report-dir}/analysis-analysis.md` and **appends a new per-session Part B section** using the data collected during the run (cluster order attempted, outcomes, timings, showstoppers, incidentals, branch strategy, gate list). Each session writes its own section with heading `## Part B — Fix coordinator retrospective (session N, YYYY-MM-DD, iar {version})`, where `N` is derived by scanning the file for existing Part B headings. The skill's own revision is captured via the fallback chain (`sha:` → `version:` → `skill-md-hash:`) so each session's retrospective is identifiable even when future iar versions differ. Never overwrites a prior session's Part B. Anonymization matches cda's Part A contract.
+See `references/implementation-retrospective-writer.md`. Create `{report-dir}/retrospective/implementation/session-{NN}/` and write a full per-session bundle using the data collected during the run (cluster order attempted, outcomes, timings, showstoppers, incidentals, branch strategy, gate list). Each session gets its own directory with `agents/`, `summary.md`, and `suggestions.md`. The skill's own revision is captured via the fallback chain (`sha:` → `version:` → `skill-md-hash:`) so each session's retrospective is identifiable even when future iar versions differ. Never overwrite a prior session directory. Anonymization matches the shared retrospective contract.
 
 ## Model selection
 
@@ -134,15 +134,15 @@ Default orchestrator model: whichever agent invokes the skill — no escalation 
 - **Editing cluster findings or bodies.** The cluster file is frozen input. Only `Status:`, `Autonomy:` (rarely), `Resolved-in:`, `Deferred-reason:` are writable from this skill.
 - **Promoting a `needs-spec` cluster to `closed`.** `needs-spec` defaults to auto-defer to `docs/ideas/<slug>.md`. A subagent confident it can implement a `needs-spec` cluster without a spec is misreading the autonomy field.
 - **Skipping `render-status.sh`.** Every Status flip re-runs the script. The README / REPORT.md index drifts otherwise.
-- **Skipping Part B.** The retrospective is the mechanism by which iar evolves. An empty or boilerplate Part B is worse than none. Write specifics while they are fresh.
+- **Skipping the implementation retrospective bundle.** The retrospective is the mechanism by which iar evolves. An empty or boilerplate bundle is worse than none. Write specifics while they are fresh.
 - **Running a second AskUserQuestion for gate overrides.** Gate overrides per cluster live in cluster frontmatter (`gate:` field), set during cda synthesis. If a gate override is missing, inherit the preflight baseline — do not re-ask.
 - **Parallel cluster execution.** Clusters run strictly sequentially. Shared working tree semantics + `Depends-on:` edges make parallelism unsafe.
 - **Re-attempting already-terminal clusters silently.** `Status: closed` / `partial` / `deferred` / `resolved-by-dep` clusters auto-filter from the default `all` subset. If the user sets `include-terminal: true` at preflight, show the terminal-state clusters explicitly so the user confirms intent before the subagent re-runs on them.
-- **Overwriting a prior session's Part B.** Resumption runs append a new `## Part B — Fix coordinator retrospective (session N, ...)` section. Never edit a prior session's heading or body.
+- **Overwriting a prior implementation session directory.** Resumption runs create a new `retrospective/implementation/session-{NN}/`. Never reuse or edit a prior session bundle.
 
 ## Bookkeeping after the run
 
 - Branch (or worktree) is left for the user to review, merge, or PR. The skill does not push.
 - `{report-dir}/.scratch/implement-run.log` is retained — it is the primary raw input for the next iar version's RED-phase.
-- Part B of `analysis-analysis.md` is written in place.
+- A new implementation retrospective bundle is written under `retrospective/implementation/session-{NN}/`.
 - Cluster frontmatter reflects final state. README / REPORT.md index is regenerated.

@@ -131,5 +131,5 @@ If the detected command was absent, say what the project would need to add to ma
 
 ## Calibration note
 
-The threshold floors (T1 = 50%, T2 = 65%, T3 = 80%) and the `current − 5pp` clamp are starting points. The skill's `analysis-analysis.md` Part A retrospective is the place to record observations about whether these numbers fit real-world projects so a v-next author can retune.
+The threshold floors (T1 = 50%, T2 = 65%, T3 = 80%) and the `current − 5pp` clamp are starting points. The analysis retrospective bundle under `retrospective/analysis/` is the place to record observations about whether these numbers fit real-world projects so a v-next author can retune.
 ```
